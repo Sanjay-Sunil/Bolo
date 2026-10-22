@@ -31,7 +31,7 @@ const loanwords = {
   'video': 'वीडियो',
   'laptop': 'लैपटॉप',
   'computer': 'कंप्यूटर', 'internet': 'इंटरनेट', 'online': 'ऑनलाइन',
-  'wifi': 'वाईफ़ाई', 'password': 'पासवर्ड', 'account': 'अकाउंट',
+  'wifi': 'वाईफ़ाई', 'password': 'पासवर्ड', 'access': 'एक्सेस', 'account': 'अकाउंट',
   // Weather
   'weather': 'वेदर', 'forecast': 'फ़ोरकास्ट', 'temperature': 'टेम्परेचर',
   'degree': 'डिग्री', 'rain': 'रेन', 'sunny': 'सनी', 'cloudy': 'क्लाउडी',
