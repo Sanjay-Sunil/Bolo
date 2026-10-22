@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
@@ -6,7 +7,7 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:record/record.dart';
 
 import '../app/app_clock.dart';
-import '../app/dev_model_store.dart';
+import '../app/model_manager.dart';
 import '../app/thread_budget.dart';
 import '../audio/audio_player.dart';
 import '../llm/chat_message.dart';
@@ -18,7 +19,6 @@ import '../stt/stt_isolate.dart';
 import '../stt/turn_transcriber.dart';
 import '../text/roman_hinglish.dart';
 import '../tts/phrase_splitter.dart';
-import '../tts/piper_voice_files.dart';
 import '../tts/tts_isolate.dart';
 import '../vad/vad_isolate.dart';
 import '../vad/vad_message.dart';
@@ -55,6 +55,11 @@ class ConversationController {
   /// Latest mic visualizer levels (read every frame by the UI).
   Float32List micLevels = Float32List(7);
 
+  final _models = ModelManager();
+
+  /// First-run download progress (0..1), null when not downloading.
+  ValueListenable<double?> get downloadProgress => _models.progress;
+
   final _recorder = AudioRecorder();
   final _player = AudioPlayer();
   final _llmHistory = <ChatMessage>[];
@@ -84,28 +89,15 @@ class ConversationController {
       if (key.isNotEmpty) {
         _llm = LlmClient(provider: LlmProvider.groq, apiKey: key);
       }
-      status.value = 'Loading models…';
-      final store = await DevModelStore.open();
-      final silero = await store.file('silero_vad_v5.onnx');
-      final whisper = await store.file('ggml-swift-q8_0.bin');
-      final hi = await store.pack('piper-hi');
-      final en = await store.pack('piper-en-lessac');
+      final models = await _models.ensure();
       final threads = inferenceThreads();
       final sw = Stopwatch()..start();
       final loaded = await Future.wait([
-        VadIsolate.spawn(silero),
-        SttIsolate.spawn(whisper, threads: threads),
+        VadIsolate.spawn(models.silero),
+        SttIsolate.spawn(models.whisper, threads: threads),
         TtsIsolate.spawn(
-          hindi: PiperVoiceFiles(
-            model: '$hi/hi_IN-priyamvada-medium.onnx',
-            tokens: '$hi/tokens.txt',
-            espeakData: '$hi/espeak-ng-data',
-          ),
-          english: PiperVoiceFiles(
-            model: '$en/model.onnx',
-            tokens: '$en/tokens.txt',
-            espeakData: '$en/espeak-ng-data',
-          ),
+          hindi: models.hindiVoice,
+          english: models.englishVoice,
           threads: threads,
         ),
       ]);
@@ -125,7 +117,9 @@ class ConversationController {
       phase.value = ConversationPhase.idle;
     } catch (e) {
       debugPrint('BOLO load error: $e');
-      status.value = 'Couldn\'t load models: $e';
+      status.value = e is SocketException || e is HttpException
+          ? 'Couldn\'t download the models. Check the internet and reopen.'
+          : 'Couldn\'t load models: $e';
       phase.value = ConversationPhase.failed;
     }
   }
@@ -397,6 +391,7 @@ class ConversationController {
     _stt?.dispose();
     _tts?.dispose();
     _llm?.close();
+    _models.dispose();
     await _transcriber?.close();
   }
 }

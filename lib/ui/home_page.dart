@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../app/app_clock.dart';
+import '../app/model_manager.dart';
 import '../conversation/chat_entry.dart';
 import '../conversation/conversation_controller.dart';
 import '../conversation/conversation_phase.dart';
@@ -146,7 +147,12 @@ class _CenterText extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = controller;
     return ListenableBuilder(
-      listenable: Listenable.merge([c.phase, c.userText, c.reply]),
+      listenable: Listenable.merge([
+        c.phase,
+        c.userText,
+        c.reply,
+        c.downloadProgress,
+      ]),
       builder: (context, _) {
         final phase = c.phase.value;
         final user = c.userText.value;
@@ -154,7 +160,8 @@ class _CenterText extends StatelessWidget {
         final Widget child;
         switch (phase) {
           case ConversationPhase.loading:
-            child = _hint('Getting ready…');
+            final p = c.downloadProgress.value;
+            child = p == null ? _hint('Getting ready…') : _download(p);
           case ConversationPhase.failed:
             child = _hint('Couldn\'t start');
           case ConversationPhase.idle:
@@ -190,6 +197,34 @@ class _CenterText extends StatelessWidget {
       },
     );
   }
+
+  Widget _download(double p) => Column(
+    key: const ValueKey('download'),
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      _hint('Downloading the voice and speech models\nfirst launch only'),
+      const SizedBox(height: 20),
+      SizedBox(
+        width: 160,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(2),
+          child: LinearProgressIndicator(
+            value: p,
+            minHeight: 3,
+            backgroundColor: Palette.hairline,
+            color: Palette.userVoice.last,
+          ),
+        ),
+      ),
+      const SizedBox(height: 10),
+      Text(
+        '${(p * 100).round()}%  ·  '
+        '${(p * ModelManager.totalBytes / 1e6).round()} of '
+        '${(ModelManager.totalBytes / 1e6).round()} MB',
+        style: inter(12, color: Palette.textMuted),
+      ),
+    ],
+  );
 
   Widget _hint(String text) => Text(
     text,
