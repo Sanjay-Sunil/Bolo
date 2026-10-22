@@ -1,0 +1,26 @@
+flowchart TB
+    classDef phone fill:{{phone_fill}},stroke:{{phone_stroke}},stroke-width:1.5px,color:{{text}};
+    classDef cloud fill:{{cloud_fill}},stroke:{{cloud_stroke}},stroke-width:1.5px,color:{{text}};
+    classDef io fill:{{io_fill}},stroke:{{io_stroke}},stroke-width:1.5px,color:{{text}};
+
+    subgraph HEAR["1 · Hear, on the phone"]
+        direction LR
+        U(("You speak")):::io --> MIC("Mic<br/>16 kHz PCM"):::phone
+        MIC --> VAD("Silero VAD + segmenter<br/><i>VAD isolate</i>"):::phone
+        VAD -- "turn audio" --> STT("Whisper Hinglish Swift<br/>whisper.cpp q8_0<br/><i>STT isolate</i>"):::phone
+    end
+
+    subgraph THINK["2 · Think"]
+        direction LR
+        CTRL("Conversation controller<br/><i>on the phone · main isolate</i>"):::phone -- "transcript + history" --> LLM("Groq · qwen3.8-27b<br/><i>cloud</i>"):::cloud
+    end
+
+    subgraph SPEAK["3 · Speak, on the phone"]
+        direction LR
+        SPLIT("Phrase splitter<br/><i>main isolate</i>"):::phone -- "phrases" --> TTS("Text normalizer + Piper<br/>hi_IN · en_US<br/><i>TTS isolate</i>"):::phone
+        TTS -- "PCM audio" --> PLAY("Gapless player<br/>+ text in sync"):::phone
+        PLAY --> SPK(("Reply")):::io
+    end
+
+    HEAR -- "transcript" --> THINK
+    THINK -- "streamed tokens" --> SPEAK

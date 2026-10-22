@@ -1,0 +1,36 @@
+sequenceDiagram
+    autonumber
+    actor U as User
+    box {{phone_box}} On the phone
+        participant V as VAD isolate
+        participant S as STT isolate
+        participant M as Main isolate
+        participant T as TTS isolate
+    end
+    box {{cloud_box}} Cloud
+        participant G as Groq LLM
+    end
+
+    U->>V: speaks
+    V->>M: speech start
+    M-->>G: open the connection early
+    loop every ~0.7 s while speaking
+        V->>S: turn audio so far
+        S-->>M: live transcript
+    end
+    U->>V: stops talking
+    V->>S: 200 ms pause: early final decode
+    Note over V: 0.7 s of silence
+    V->>M: end of turn
+    S->>M: final transcript (~0.4 s after end of turn)
+    M->>G: transcript + recent history
+    G-->>M: first token (~0.43 s)
+    M->>T: first phrase (3 words)
+    T->>U: first audio (~0.48 s after first token)
+    Note over U,G: last spoken word to first reply audio: ~2.1 s median
+    loop until the reply ends
+        G-->>M: more tokens
+        M->>T: next phrase
+        T->>U: played back to back
+    end
+    Note over U,M: reply ends, the mic reopens

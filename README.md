@@ -134,81 +134,20 @@ Both voices were also checked by ear on the phone.
 
 ### Architecture
 
-```mermaid
----
-config:
-  look: handDrawn
-  theme: neutral
----
-flowchart TB
-    subgraph HEAR["📱 1 · Hear, on the phone"]
-        direction LR
-        U(("🗣️ You speak")) --> MIC["🎙️ Mic<br/>16 kHz PCM"]
-        MIC --> VAD["Silero VAD<br/>+ segmenter<br/><i>VAD isolate</i>"]
-        VAD -- "turn audio" --> STT["Whisper Hinglish Swift<br/>whisper.cpp q8_0<br/><i>STT isolate</i>"]
-    end
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/diagrams/arch-dark.png">
+  <img alt="Architecture: hear on the phone, think in the cloud, speak on the phone" src="docs/diagrams/arch-light.png">
+</picture>
 
-    subgraph THINK["2 · Think"]
-        direction LR
-        CTRL["📱 Conversation controller<br/><i>on the phone · main isolate</i>"] -- "transcript + history" --> LLM["☁️ Groq<br/>qwen3.8-27b<br/><i>cloud</i>"]
-    end
-
-    subgraph SPEAK["📱 3 · Speak, on the phone"]
-        direction LR
-        SPLIT["Phrase splitter<br/><i>main isolate</i>"] -- "phrases" --> TTS["Text normalizer + Piper<br/>hi_IN · en_US<br/><i>TTS isolate</i>"]
-        TTS -- "PCM" --> PLAY["Gapless player<br/>+ text in sync"]
-        PLAY --> SPK(("🔊 Reply"))
-    end
-
-    HEAR -- "transcript" --> THINK
-    THINK -- "streamed tokens" --> SPEAK
-```
-
-Each model runs in its own Dart isolate, so inference never blocks the UI. Only the transcript and the
-reply text cross the network.
+Green runs on the phone, orange in the cloud. Each model runs in its own Dart isolate, so inference never
+blocks the UI. Only the transcript and the reply text cross the network.
 
 ### One turn, step by step
 
-```mermaid
----
-config:
-  look: handDrawn
-  theme: neutral
----
-sequenceDiagram
-    autonumber
-    actor U as User
-    participant V as VAD isolate
-    participant S as STT isolate
-    participant M as Main isolate
-    participant G as Groq LLM
-    participant T as TTS isolate
-    participant P as Speaker
-
-    U->>V: speaks
-    V->>M: speech start
-    M-->>G: open connection early
-    loop every ~0.7 s while speaking
-        V->>S: turn audio so far
-        S-->>M: live transcript
-    end
-    U->>V: stops talking
-    V->>S: short pause (200 ms) → early final decode
-    Note over V: 0.7 s of silence
-    V->>M: end of turn
-    S->>M: final transcript (≈0.4 s after end of turn)
-    M->>G: transcript + recent history
-    G-->>M: first token (≈0.43 s)
-    M->>T: first phrase (3 words)
-    T->>P: first audio (≈0.48 s after first token)
-    Note over U,P: last spoken word → first reply audio ≈ 2.1 s (median)
-    loop until the reply ends
-        G-->>M: more tokens
-        M->>T: next phrase
-        T->>P: queued back to back
-    end
-    P-->>U: reply ends → mic reopens
-```
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/diagrams/turn-dark.png">
+  <img alt="One turn, step by step, with measured timings" src="docs/diagrams/turn-light.png">
+</picture>
 
 1. **Listening.** Silero VAD marks speech in every 32 ms window. The segmenter turns that into speech
    start, short pauses (200 ms) and end of turn (700 ms).
@@ -227,23 +166,10 @@ at launch, so the first turn is as fast as the rest.
 
 ### Conversation states
 
-```mermaid
----
-config:
-  look: handDrawn
-  theme: neutral
----
-stateDiagram-v2
-    direction LR
-    [*] --> Loading
-    Loading --> Idle: models ready
-    Idle --> Listening: tap mic
-    Listening --> Thinking: 0.7 s of silence
-    Thinking --> Speaking: first reply audio
-    Speaking --> Listening: reply finished
-    Thinking --> Listening: nothing heard
-    Listening --> Idle: 8 s without speech
-```
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/diagrams/states-dark.png">
+  <img alt="Conversation states" src="docs/diagrams/states-light.png">
+</picture>
 
 A tap on the mic stops the conversation from any state.
 
@@ -314,6 +240,8 @@ flutter test    # 155 unit tests
 
 The tests cover the segmenter, transcriber scheduling, SSE parsing, the LLM client, phrase splitting,
 text normalization, loanwords, Roman Hinglish, WER/CER and the frequency bands.
+
+The diagrams are generated from `docs/diagrams/*.mmd` by `tools/render_diagrams.py`.
 
 `tools/convert_swift_ggml.sh` converts the Hugging Face checkpoint to whisper.cpp ggml (f16, q5_1,
 q8_0). The app downloads the published q8_0 file from the

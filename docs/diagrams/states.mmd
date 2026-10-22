@@ -1,0 +1,12 @@
+stateDiagram-v2
+    direction LR
+    classDef st fill:{{phone_fill}},stroke:{{phone_stroke}},stroke-width:1.5px,color:{{text}};
+    [*] --> Loading
+    Loading --> Idle: models ready
+    Idle --> Listening: tap mic
+    Listening --> Thinking: 0.7 s of silence
+    Thinking --> Speaking: first reply audio
+    Speaking --> Listening: reply finished
+    Thinking --> Listening: nothing heard
+    Listening --> Idle: 8 s without speech
+    class Loading, Idle, Listening, Thinking, Speaking st
