@@ -20,14 +20,23 @@ const _hindiVoice = 31; // hf_alpha
 const _englishVoice = 3; // af_heart
 
 const _phrases = [
-  ('hi-first', 'ठीक है,'),
-  ('hi-full', 'ठीक है, आपकी मीटिंग शाम पाँच बजे है।'),
-  ('hi-alarm', 'कल सुबह सात बजे का अलार्म सेट कर दिया है।'),
-  ('en', 'Sure, your meeting is at 5 PM.'),
+  ('hi-mix01', 'हाँ, आपका फ़्लाइट टिकट कन्फ़र्म हो गया है।'),
+  ('hi-mix02', 'कल बैंगलोर में मौसम क्लाउडी रहेगा, अट्ठाईस डिग्री के आसपास।'),
+  ('hi-mix03', 'आपकी नेक्स्ट मीटिंग दोपहर तीन बजे डिज़ाइन टीम के साथ है।'),
+  ('hi-mix04', 'ठीक है, मैं आपको पाँच बजे रिमाइंडर भेज दूँगी।'),
   (
-    'en-long',
-    'Tomorrow in Bangalore it will be partly cloudy, around 28 degrees.',
+    'hi-mix05',
+    'ट्रैफ़िक बहुत ज़्यादा है, ऑफ़िस पहुँचने में चालीस मिनट लगेंगे।',
   ),
+  ('hi-mix06', 'आपके फ़ोन की बैटरी बीस परसेंट पर है, चार्जर लगा लीजिए।'),
+  ('hi-mix07', 'सॉरी, मैं ईमेल नहीं भेज सकती, पर आप ड्राफ़्ट तैयार रखिए।'),
+  ('hi-mix08', 'वीकेंड पर मूवी देखने का प्लान अच्छा आइडिया है।'),
+  ('hi-mix09', 'आज का शेड्यूल थोड़ा बिज़ी है, लंच के बाद दो कॉल्स हैं।'),
+  ('hi-mix10', 'ओके, सुबह सात बजे का अलार्म याद रखिए।'),
+  ('hi-latin1', 'आपकी next meeting दोपहर तीन बजे design team के साथ है।'),
+  ('hi-latin2', 'आपके phone की battery बीस percent पर है, charger लगा लीजिए।'),
+  ('hi-latin3', 'आज का schedule थोड़ा busy है, lunch के बाद दो calls हैं।'),
+  ('en', 'Sure, your meeting is at 5 PM.'),
 ];
 
 const _englishPiper = ['lessac', 'amy', 'hfc_female'];
@@ -44,6 +53,7 @@ class _G3PageState extends State<G3Page> {
   final _clips = <String, so.GeneratedAudio>{};
   final int _threads = inferenceThreads();
   bool _busy = false;
+  bool _playing = false;
 
   void _say(String line) {
     debugPrint('G3 $line');
@@ -143,7 +153,10 @@ class _G3PageState extends State<G3Page> {
   }
 
   Future<void> _play() async {
-    for (final e in _clips.entries) {
+    if (_playing) return;
+    setState(() => _playing = true);
+    for (final e in _clips.entries.toList()) {
+      if (!_playing) break;
       final a = e.value;
       _say('playing ${e.key}');
       await FlutterPcmSound.release();
@@ -160,6 +173,13 @@ class _G3PageState extends State<G3Page> {
       final ms = a.samples.length * 1000 ~/ a.sampleRate;
       await Future<void>.delayed(Duration(milliseconds: ms + 600));
     }
+    if (mounted) setState(() => _playing = false);
+  }
+
+  Future<void> _stopPlayback() async {
+    _playing = false;
+    await FlutterPcmSound.release();
+    setState(() {});
   }
 
   @override
@@ -167,7 +187,7 @@ class _G3PageState extends State<G3Page> {
     Widget button(String label, VoidCallback onTap) => Padding(
       padding: const EdgeInsets.only(right: 8, bottom: 8),
       child: ElevatedButton(
-        onPressed: _busy ? null : onTap,
+        onPressed: _busy || _playing ? null : onTap,
         child: Text(label),
       ),
     );
@@ -205,6 +225,13 @@ class _G3PageState extends State<G3Page> {
                   for (final v in _englishPiper)
                     button('Piper $v', () => _run('piper-en-$v')),
                   button('Play', _play),
+                  Padding(
+                    padding: const EdgeInsets.only(right: 8, bottom: 8),
+                    child: ElevatedButton(
+                      onPressed: _playing ? _stopPlayback : null,
+                      child: const Text('Stop'),
+                    ),
+                  ),
                 ],
               ),
             ),
