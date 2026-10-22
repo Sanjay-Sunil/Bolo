@@ -94,7 +94,7 @@ class _FrequencyBarsState extends State<FrequencyBars>
           _ => Palette.idle,
         };
         return CustomPaint(
-          size: const Size(176, 112),
+          size: const Size(132, 112),
           painter: _BarsPainter(
             levels: _levels,
             order: _order,
@@ -121,11 +121,11 @@ class _BarsPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    const barWidth = 12.0;
+    const barWidth = 6.0;
     final gap = (size.width - barWidth * order.length) / (order.length - 1);
     final shader = LinearGradient(
-      begin: Alignment.bottomLeft,
-      end: Alignment.topRight,
+      begin: Alignment.bottomCenter,
+      end: Alignment.topCenter,
       colors: colors,
     ).createShader(Offset.zero & size);
     final paint = Paint()..shader = shader;

@@ -11,9 +11,9 @@ abstract final class Palette {
   static const textMuted = Color(0xFF5A5A63);
   static const danger = Color(0xFFFCA5A5);
 
-  static const userVoice = [Color(0xFF7DD3FC), Color(0xFFA5B4FC)];
-  static const agentVoice = [Color(0xFFC4B5FD), Color(0xFFF0ABFC)];
-  static const idle = [Color(0xFF3F3F46), Color(0xFF52525B)];
+  static const userVoice = [Color(0xFF6EE7B7), Color(0xFF22D3EE)];
+  static const agentVoice = [Color(0xFFFDBA74), Color(0xFFF472B6)];
+  static const idle = [Color(0xFF3F3F46), Color(0xFF71717A)];
 }
 
 /// Inter at a given weight (the bundled font is variable).

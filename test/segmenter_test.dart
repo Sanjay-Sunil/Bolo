@@ -2,6 +2,7 @@ import 'dart:typed_data';
 
 import 'package:bolo/vad/piece.dart';
 import 'package:bolo/vad/segmenter.dart';
+import 'package:bolo/vad/segmenter_config.dart';
 import 'package:bolo/vad/vad_detector.dart';
 import 'package:bolo/vad/vad_event.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -15,7 +16,11 @@ class ValueDetector implements VadDetector {
 
 class Harness {
   Harness({int Function()? endOfTurnMs})
-    : seg = Segmenter(ValueDetector(), endOfTurnMs: endOfTurnMs) {
+    : seg = Segmenter(
+        ValueDetector(),
+        config: const SegmenterConfig(endOfTurnMs: 400),
+        endOfTurnMs: endOfTurnMs,
+      ) {
     seg.events.listen(events.add);
     seg.pieces.listen(pieces.add);
   }

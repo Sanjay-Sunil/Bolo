@@ -3,7 +3,7 @@ class SegmenterConfig {
     this.sampleRate = 16000,
     this.shortPauseMs = 200,
     this.minSpeechMs = 250,
-    this.endOfTurnMs = 400,
+    this.endOfTurnMs = 700,
     this.tentativeIntervalMs = 700,
     this.maxPieceMs = 10000,
     this.preRollMs = 100,
