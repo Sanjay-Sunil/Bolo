@@ -6,6 +6,7 @@ import '../tts/loanwords.dart';
 ///
 /// Pass [capitalize] false for a phrase that continues a sentence.
 String romanHinglish(String text, {bool capitalize = true}) {
+  text = text.replaceAll(_markdown, '');
   final out = StringBuffer();
   var sentenceStart = capitalize;
   for (final m in _token.allMatches(text)) {
@@ -36,6 +37,8 @@ String romanHinglish(String text, {bool capitalize = true}) {
   return out.toString();
 }
 
+/// Emphasis and code markers the LLM sometimes adds (`**word**`, `_word_`).
+final _markdown = RegExp(r'\*\*|__|`|(?<=\s|^)[*_#]+|[*_]+(?=\s|$|[.,!?।])');
 final _token = RegExp('[ऀ-ॣॱ-ॿ]+|[^ऀ-ॣॱ-ॿ]+');
 final _devanagariWord = RegExp('^[ऀ-ॣॱ-ॿ]+\$');
 final _devanagariDigit = RegExp('[०-९]');

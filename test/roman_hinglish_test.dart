@@ -55,6 +55,14 @@ void main() {
     );
   });
 
+  test('markdown emphasis is removed', () {
+    expect(
+      romanHinglish("Here's the word: **developer**."),
+      "Here's the word: developer.",
+    );
+    expect(romanHinglish('*ज़रूर*'), 'Zaroor');
+  });
+
   test('Latin text passes through', () {
     expect(
       romanHinglish('Sure, your meeting is at 5 PM.'),
