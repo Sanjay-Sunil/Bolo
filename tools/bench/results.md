@@ -36,3 +36,24 @@ Sizing the window to the clip (~256 to 280 frames) gave "mujhe ek karna hai." fo
 
 Overall WER 20% (8 / 40 words). The same errors appear with the full 30 s window, so they come from the model, not the runtime settings.
 "5PM" vs "5 PM" accounts for 2 of the 3 errors in sentence 2.
+
+## TTS: Kokoro-82M vs Piper (2026-10-22)
+
+sherpa-onnx 1.13.8, 4 threads, release build. Hindi text is in Devanagari; sherpa-onnx phonemizes it with espeak-ng Hindi rules
+(e.g. `ʈʰˈiːk hɛː, ˌaːpkˌi miʈˈĩɡ ʃˈaːm pˈãnc bˈʌɟeː hɛː`). Kokoro's `lang` option made no difference.
+Synth time is the median of 3 runs. Round-trip WER: synthesize, resample to 16 kHz, transcribe with Swift q8_0 (laptop), score
+against a romanized reference (4 Hindi / 3 English sentences). This measures intelligibility, not naturalness.
+
+| Engine / voice | Lang | Load | RAM (RSS delta) | First phrase "ठीक है," | 3 s sentence | RTF | Round-trip WER | CER |
+|---|---|---|---|---|---|---|---|---|
+| Kokoro int8, hf_alpha | hi | 3.1 s | +277 MB | 1885 ms | 4700 ms | ~1.55 | 15.4% | 3.9% |
+| Kokoro fp32, hf_alpha | hi | 3.0 s | +454 MB | 1282 ms | 3105 ms | ~1.03 | 15.4% | 4.3% |
+| **Piper hi_IN-priyamvada int8** | hi | 3.1 s | +19 MB | **200 ms** | **881 ms** | **~0.29** | 17.9% | 5.3% |
+| Kokoro int8, af_heart | en | | | | 3242 ms (2.05 s audio) | ~1.58 | 16.7% | 5.3% |
+| Kokoro fp32, af_heart | en | | | | 2212 ms (2.02 s audio) | ~1.10 | 16.7% | 5.3% |
+| **Piper en_US-lessac int8** | en | 2.6 s | +40 MB | | 564 ms (2.01 s audio) | ~0.28 | **10.0%** | 2.6% |
+| Piper en_US-amy int8 | en | 3.4 s | +20 MB | | 751 ms (2.66 s audio) | ~0.28 | 13.3% | 3.3% |
+| Piper en_US-hfc_female int8 | en | 2.9 s | +13 MB | | 636 ms (2.32 s audio) | ~0.27 | 20.0% | 7.3% |
+
+Kokoro needs as long as (or longer than) the audio it produces on this phone, so streamed playback would stall.
+Pick: Piper `hi_IN-priyamvada` + Piper `en_US-lessac`, int8, 22.05 kHz.
