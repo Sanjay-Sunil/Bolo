@@ -59,3 +59,7 @@ models/
 
 # Kotlin compiler sessions
 android/.kotlin/
+
+# Model conversion tooling
+tools/.venv/
+tools/.cache/
