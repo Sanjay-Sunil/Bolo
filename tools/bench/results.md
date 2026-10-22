@@ -103,3 +103,42 @@ Piper phrase streaming. Latency in ms; total = last voiced frame to first reply 
 
 STT WER 15% (6/40; 2 of them are "05:00PM" vs "5 PM"). Sentence 1 got a Hindi reply to an English question.
 LLM first token (0.9 to 2.6 s) is the largest stage; everything else totals about 1.5 s.
+
+## Automated 4 × 3 run, laptop speaker to phone mic (2026-10-22, M52, release)
+
+The laptop speaks the 4 test sentences out loud (Kokoro voices, three speaker pairs: af_heart/hf_alpha,
+am_michael/hm_omega, af_bella/hf_beta; Hinglish written in Devanagari for the voice) and the phone listens
+hands-free. Groq qwen3.8-27b with few-shot examples, warm-up on. Mic source: voiceCommunication.
+
+Latency (ms, last voiced frame to first reply audio), 12 turns:
+
+| Stage | Median | Worst |
+|---|---|---|
+| End of turn (700 ms silence + VAD) | 783 | 817 |
+| STT after end of turn | 463 | 726 |
+| LLM first token | 701 | 1850 |
+| TTS (first token to first audio) | 586 | 728 |
+| **Total** | **2453** | **3579** |
+
+STT accuracy over the air (WER/CER with number normalization, e.g. "saat" = 7, "5PM" = "5 pm"):
+**WER 37.5%, CER 25.9%** (raw without number normalization: 40.8% / 27.5%). The laptop-speaker-to-phone-mic
+path is much harsher than a person speaking into the phone (15% WER in the live session); round 2's male
+voices fared worst ("sir of a mind here for my my").
+
+Whisper prompt experiment on these 12 recordings (laptop, the app's exact decode settings; no-prompt
+baseline reproduces the phone's 37.5% exactly):
+
+| Prompt | WER | CER |
+|---|---|---|
+| none (app) | 37.5% | 26.1% |
+| English word list ("Bangalore, reminder, meeting, alarm, schedule, PM.") | 40.8% | 28.7% |
+| Generic Hinglish chat sentences | 38.3 to 40.8% | 26.3 to 29.2% |
+| Sentences close to the test sentences | 20.8% | 16.3% |
+
+The last row is leakage (it copied "Set a reminder for my meeting." from the prompt), not a fair gain.
+Decision: no prompt.
+
+Mic source A/B (same 12 clips, same setup): `voiceRecognition` (no call processing) gave WER 43.3%, CER 27.1%
+and cut one turn short ("Can you sir"); `voiceCommunication` (37.5% / 25.9%) stays. In that run latency was
+median 2222 ms, worst 3419 ms (LLM first token mostly 0.2 to 0.6 s), so run-to-run Groq variation is
+about ±0.2 s on the median.
