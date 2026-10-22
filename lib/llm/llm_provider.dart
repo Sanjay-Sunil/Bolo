@@ -3,7 +3,7 @@
 enum LlmProvider {
   groq(
     baseUrl: 'https://api.groq.com/openai/v1',
-    defaultModel: 'qwen/qwen3.8-27b',
+    defaultModel: 'openai/gpt-oss-120b',
     buildKey: String.fromEnvironment('GROQ_API_KEY'),
   ),
   gemini(
