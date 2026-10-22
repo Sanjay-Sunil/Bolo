@@ -12,7 +12,6 @@ import '../conversation/spoken_phrase.dart';
 import 'frequency_bars.dart';
 import 'palette.dart';
 import 'reply_text.dart';
-import 'thinking_dots.dart';
 
 /// One full-screen stage (bars, live words, reply); scrolling down reveals
 /// the conversation history.
@@ -177,15 +176,9 @@ class _CenterText extends StatelessWidget {
               child = _hint('Listening…');
             }
           case ConversationPhase.thinking:
-            child = Column(
-              key: const ValueKey('thinking'),
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (user.isNotEmpty) _userWords(user, live: false),
-                const SizedBox(height: 22),
-                const ThinkingDots(),
-              ],
-            );
+            child = user.isEmpty
+                ? const SizedBox.shrink()
+                : _userWords(user, live: true);
           case ConversationPhase.speaking:
             child = _replyBlock(user, reply, dim: false);
         }
@@ -203,20 +196,7 @@ class _CenterText extends StatelessWidget {
     mainAxisSize: MainAxisSize.min,
     children: [
       _hint('Downloading the voice and speech models\nfirst launch only'),
-      const SizedBox(height: 20),
-      SizedBox(
-        width: 160,
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(2),
-          child: LinearProgressIndicator(
-            value: p,
-            minHeight: 3,
-            backgroundColor: Palette.hairline,
-            color: Palette.userVoice.last,
-          ),
-        ),
-      ),
-      const SizedBox(height: 10),
+      const SizedBox(height: 14),
       Text(
         '${(p * 100).round()}%  ·  '
         '${(p * ModelManager.totalBytes / 1e6).round()} of '
@@ -234,15 +214,12 @@ class _CenterText extends StatelessWidget {
   );
 
   Widget _userWords(String text, {required bool live}) {
+    // Same look while listening and while thinking, so nothing jumps when
+    // the turn ends.
     final words = Text(
       text,
       textAlign: TextAlign.center,
-      style: inter(
-        live ? 22 : 16,
-        weight: live ? 350 : 400,
-        color: live ? Palette.text : Palette.textSoft,
-        height: 1.4,
-      ),
+      style: inter(16, color: Palette.textSoft, height: 1.45),
     );
     return live
         ? _FollowLatest(key: const ValueKey('user'), child: words)
