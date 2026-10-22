@@ -124,6 +124,7 @@ class ConversationController {
         }
       });
       debugPrint('BOLO models loaded in ${sw.elapsedMilliseconds} ms');
+      await _warmUp();
       status.value = _llm == null ? 'No Groq key in .env' : '';
       phase.value = ConversationPhase.idle;
     } catch (e) {
@@ -133,6 +134,18 @@ class ConversationController {
           : 'Couldn\'t load models: $e';
       phase.value = ConversationPhase.failed;
     }
+  }
+
+  /// The first decode and synthesis after loading are slow (cold caches and
+  /// allocations). Paying for them here keeps the first real turn fast.
+  Future<void> _warmUp() async {
+    final sw = Stopwatch()..start();
+    await Future.wait([
+      _stt!.decode(Float32List(_sampleRate)),
+      _tts!.synthesize('ठीक है।'),
+      _tts!.synthesize('Okay.'),
+    ]);
+    debugPrint('BOLO warm-up ${sw.elapsedMilliseconds} ms');
   }
 
   /// Mic button: start a conversation, or stop the one running.
