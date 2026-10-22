@@ -36,6 +36,7 @@ const _phrases = [
   ('hi-latin1', 'आपकी next meeting दोपहर तीन बजे design team के साथ है।'),
   ('hi-latin2', 'आपके phone की battery बीस percent पर है, charger लगा लीजिए।'),
   ('hi-latin3', 'आज का schedule थोड़ा busy है, lunch के बाद दो calls हैं।'),
+  ('en-first', 'Sure, your'),
   ('en', 'Sure, your meeting is at 5 PM.'),
 ];
 
