@@ -132,16 +132,83 @@ Both voices were also checked by ear on the phone.
 
 ## How it works
 
-```
-mic (16 kHz PCM)
-  └─▶ VAD isolate ── Silero VAD v5 · segmenter (pauses, end of turn) · FFT bands for the bars
-        └─▶ STT isolate ── Whisper-Hindi2Hinglish-Swift (whisper.cpp, q8_0)
-              └─▶ main isolate ── Groq chat completion (streamed) ─▶ phrase splitter
-                    └─▶ TTS isolate ── text normalizer · Piper (hi_IN / en_US) · FFT bands
-                          └─▶ gapless PCM playback, reply text revealed in sync
+### Architecture
+
+```mermaid
+---
+config:
+  look: handDrawn
+  theme: neutral
+---
+flowchart TB
+    subgraph HEAR["📱 1 · Hear, on the phone"]
+        direction LR
+        U(("🗣️ You speak")) --> MIC["🎙️ Mic<br/>16 kHz PCM"]
+        MIC --> VAD["Silero VAD<br/>+ segmenter<br/><i>VAD isolate</i>"]
+        VAD -- "turn audio" --> STT["Whisper Hinglish Swift<br/>whisper.cpp q8_0<br/><i>STT isolate</i>"]
+    end
+
+    subgraph THINK["2 · Think"]
+        direction LR
+        CTRL["📱 Conversation controller<br/><i>on the phone · main isolate</i>"] -- "transcript + history" --> LLM["☁️ Groq<br/>qwen3.8-27b<br/><i>cloud</i>"]
+    end
+
+    subgraph SPEAK["📱 3 · Speak, on the phone"]
+        direction LR
+        SPLIT["Phrase splitter<br/><i>main isolate</i>"] -- "phrases" --> TTS["Text normalizer + Piper<br/>hi_IN · en_US<br/><i>TTS isolate</i>"]
+        TTS -- "PCM" --> PLAY["Gapless player<br/>+ text in sync"]
+        PLAY --> SPK(("🔊 Reply"))
+    end
+
+    HEAR -- "transcript" --> THINK
+    THINK -- "streamed tokens" --> SPEAK
 ```
 
-Each model runs in its own Dart isolate, so inference never blocks the UI.
+Each model runs in its own Dart isolate, so inference never blocks the UI. Only the transcript and the
+reply text cross the network.
+
+### One turn, step by step
+
+```mermaid
+---
+config:
+  look: handDrawn
+  theme: neutral
+---
+sequenceDiagram
+    autonumber
+    actor U as User
+    participant V as VAD isolate
+    participant S as STT isolate
+    participant M as Main isolate
+    participant G as Groq LLM
+    participant T as TTS isolate
+    participant P as Speaker
+
+    U->>V: speaks
+    V->>M: speech start
+    M-->>G: open connection early
+    loop every ~0.7 s while speaking
+        V->>S: turn audio so far
+        S-->>M: live transcript
+    end
+    U->>V: stops talking
+    V->>S: short pause (200 ms) → early final decode
+    Note over V: 0.7 s of silence
+    V->>M: end of turn
+    S->>M: final transcript (≈0.4 s after end of turn)
+    M->>G: transcript + recent history
+    G-->>M: first token (≈0.43 s)
+    M->>T: first phrase (3 words)
+    T->>P: first audio (≈0.48 s after first token)
+    Note over U,P: last spoken word → first reply audio ≈ 2.1 s (median)
+    loop until the reply ends
+        G-->>M: more tokens
+        M->>T: next phrase
+        T->>P: queued back to back
+    end
+    P-->>U: reply ends → mic reopens
+```
 
 1. **Listening.** Silero VAD marks speech in every 32 ms window. The segmenter turns that into speech
    start, short pauses (200 ms) and end of turn (700 ms).
@@ -157,6 +224,28 @@ Each model runs in its own Dart isolate, so inference never blocks the UI.
 
 The Groq connection is opened as soon as you start speaking, and the STT and TTS models are warmed up
 at launch, so the first turn is as fast as the rest.
+
+### Conversation states
+
+```mermaid
+---
+config:
+  look: handDrawn
+  theme: neutral
+---
+stateDiagram-v2
+    direction LR
+    [*] --> Loading
+    Loading --> Idle: models ready
+    Idle --> Listening: tap mic
+    Listening --> Thinking: 0.7 s of silence
+    Thinking --> Speaking: first reply audio
+    Speaking --> Listening: reply finished
+    Thinking --> Listening: nothing heard
+    Listening --> Idle: 8 s without speech
+```
+
+A tap on the mic stops the conversation from any state.
 
 ## Tech stack
 
