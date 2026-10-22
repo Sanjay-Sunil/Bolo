@@ -56,3 +56,6 @@ app.*.map.json
 models/
 *.onnx
 *.bin
+
+# Kotlin compiler sessions
+android/.kotlin/
