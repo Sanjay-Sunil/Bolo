@@ -28,8 +28,11 @@ android {
         versionCode = flutter.versionCode
         versionName = flutter.versionName
 
+        // arm64 only: the Flutter engine and app code are built for arm64, so
+        // other ABIs' plugin libraries would only add size and crash on launch.
         ndk {
-            abiFilters += listOf("arm64-v8a")
+            abiFilters.clear()
+            abiFilters.add("arm64-v8a")
         }
         externalNativeBuild {
             cmake {

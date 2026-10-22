@@ -58,7 +58,7 @@ latency, transcription accuracy and pronunciation, especially for Hinglish.
 
 Get the APK from the [latest release](https://github.com/Sanjay-Sunil/Bolo/releases/latest).
 
-- Android 8.0 or newer on a 64-bit (arm64) phone. About 104 MB to install.
+- Android 8.0 or newer on a 64-bit (arm64) phone. The APK is about 49 MB.
 - On first launch the app downloads 126 MB of models (speech recognition, voice activity, two voices)
   and checks each file's SHA-256. After that, speech works offline.
 - Replies need a free Groq API key from [console.groq.com](https://console.groq.com). The app asks for
