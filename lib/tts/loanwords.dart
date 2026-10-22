@@ -23,7 +23,13 @@ const loanwords = {
   // Devices
   'phone': 'फ़ोन', 'mobile': 'मोबाइल', 'battery': 'बैटरी',
   'charger': 'चार्जर', 'charge': 'चार्ज', 'percent': 'परसेंट',
-  'app': 'ऐप', 'video': 'वीडियो', 'laptop': 'लैपटॉप',
+  'app': 'ऐप', 'clock': 'क्लॉक', 'timer': 'टाइमर', 'snooze': 'स्नूज़',
+  'button': 'बटन',
+  'mode': 'मोड',
+  'setting': 'सेटिंग',
+  'sleep': 'स्लीप',
+  'video': 'वीडियो',
+  'laptop': 'लैपटॉप',
   'computer': 'कंप्यूटर', 'internet': 'इंटरनेट', 'online': 'ऑनलाइन',
   'wifi': 'वाईफ़ाई', 'password': 'पासवर्ड', 'account': 'अकाउंट',
   // Weather

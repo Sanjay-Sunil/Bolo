@@ -1,0 +1,22 @@
+/// One finished exchange, for the history below the main stage.
+class ChatEntry {
+  const ChatEntry({
+    required this.user,
+    required this.reply,
+    this.metrics = '',
+    this.confidence,
+    this.typed = false,
+  });
+
+  final String user;
+
+  /// Display form of the reply (Roman Hinglish or English).
+  final String reply;
+
+  /// One-line latency breakdown.
+  final String metrics;
+
+  /// STT confidence 0..1 for spoken turns.
+  final double? confidence;
+  final bool typed;
+}

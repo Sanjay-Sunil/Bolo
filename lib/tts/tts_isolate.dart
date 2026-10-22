@@ -4,10 +4,10 @@ import 'dart:typed_data';
 
 import 'package:sherpa_onnx/sherpa_onnx.dart' as so;
 
+import '../audio/band_levels.dart';
 import 'piper_engine.dart';
 import 'piper_voice_files.dart';
 import 'text_normalizer.dart';
-import 'tts_audio.dart';
 import 'tts_result.dart';
 import 'voice.dart';
 
@@ -38,12 +38,20 @@ class TtsIsolate {
     responses.listen((message) {
       if (message is SendPort) {
         ready.complete(message);
-      } else if (message is (int, TransferableTypedData, int, int)) {
-        final (id, pcm, sampleRate, ms) = message;
-        final samples = pcm.materialize().asFloat32List();
+      } else if (message
+          is (int, TransferableTypedData, int, Float32List, int, int)) {
+        final (id, pcm, sampleRate, levels, window, ms) = message;
         tts._pending
             .remove(id)
-            ?.complete(TtsResult(TtsAudio(samples, sampleRate), ms));
+            ?.complete(
+              TtsResult(
+                pcm16: pcm.materialize().asUint8List(),
+                sampleRate: sampleRate,
+                levels: levels,
+                levelWindow: window,
+                synthMs: ms,
+              ),
+            );
       } else if (message is (int, String)) {
         final (id, error) = message;
         tts._pending.remove(id)?.completeError(StateError(error));
@@ -91,6 +99,7 @@ class TtsIsolate {
     final inbox = ReceivePort();
     out.send(inbox.sendPort);
     final sw = Stopwatch();
+    BandLevels? bands;
     inbox.listen((message) {
       if (message == null) {
         engine.dispose();
@@ -104,10 +113,27 @@ class TtsIsolate {
           ..start();
         final voice = voiceFor(phrase);
         final audio = engine.synthesize(normalize(phrase, voice), voice);
-        final pcm = TransferableTypedData.fromList([
-          Float32List.fromList(audio.samples),
-        ]);
-        out.send((id, pcm, audio.sampleRate, sw.elapsedMilliseconds));
+        final samples = audio.samples;
+        final pcm = ByteData(samples.length * 2);
+        for (var i = 0; i < samples.length; i++) {
+          pcm.setInt16(
+            i * 2,
+            (samples[i].clamp(-1.0, 1.0) * 32767).round(),
+            Endian.little,
+          );
+        }
+        if (bands?.sampleRate != audio.sampleRate) {
+          bands = BandLevels(sampleRate: audio.sampleRate);
+        }
+        final levels = bands!.track(samples);
+        out.send((
+          id,
+          TransferableTypedData.fromList([pcm.buffer.asUint8List()]),
+          audio.sampleRate,
+          levels,
+          bands!.size,
+          sw.elapsedMilliseconds,
+        ));
       } catch (e) {
         out.send((id, '$e'));
       }

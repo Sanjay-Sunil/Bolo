@@ -1,19 +1,31 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'skeleton/skeleton_page.dart';
+import 'ui/home_page.dart';
+import 'ui/palette.dart';
 
 void main() {
-  runApp(const MainApp());
+  runApp(const ProviderScope(child: BoloApp()));
 }
 
-class MainApp extends StatelessWidget {
-  const MainApp({super.key});
+class BoloApp extends StatelessWidget {
+  const BoloApp({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return const MaterialApp(
+    return MaterialApp(
+      title: 'Bolo',
       debugShowCheckedModeBanner: false,
-      home: SkeletonPage(),
+      theme: ThemeData(
+        brightness: Brightness.dark,
+        scaffoldBackgroundColor: Palette.background,
+        fontFamily: 'Inter',
+        colorScheme: const ColorScheme.dark(
+          surface: Palette.background,
+          primary: Palette.text,
+        ),
+      ),
+      home: const HomePage(),
     );
   }
 }
