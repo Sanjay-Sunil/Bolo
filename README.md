@@ -17,8 +17,13 @@ latency, transcription accuracy and pronunciation, especially for Hinglish.
 - Your words appear live under the bars while you are still speaking.
 - The reply is revealed word by word in time with the audio. Hinglish replies are spoken from Devanagari
   but shown in Roman Hinglish ("Theek hai, aapki meeting 5 baje hai.").
-- Every reply shows its latency breakdown; scroll down for the conversation history with STT confidence.
+- Under every reply: the latency breakdown and, when what you said matches one of the four assignment
+  sentences, its **WER and CER** against that sentence, plus STT confidence. Scroll down for the
+  conversation history with the same numbers per turn.
 - A keyboard button lets you type instead of speaking.
+- Without internet, speech recognition and synthesis keep working, and the app says plainly that replies
+  need Groq. Rejected keys, rate limits and stalled replies get their own short messages; a stalled reply
+  is retried once.
 
 ## How it works
 
@@ -47,6 +52,10 @@ handles the mic, the speaker, the LLM stream and the UI.
 
 **Latency is measured honestly**: from the last voiced audio frame (not from the end-of-turn event) to the
 first sample of reply audio, so the 0.7 s silence wait is included.
+
+**Warm start.** The connection to Groq is opened as soon as you start speaking, so the TLS handshake is
+not on the critical path. At launch the app runs one silent STT decode and one synthesis per voice, so
+the first real turn is not slowed by cold caches.
 
 ## Model choices (measured on the demo phone)
 
@@ -85,11 +94,19 @@ Kokoro pronounces Hindi well but is slower than real time on this phone, so a st
 between phrases. Piper is about 4x faster with the same intelligibility, and both voices were approved by
 ear. On 10 Hinglish replies, round-trip WER was 16.2% for Piper vs 19.2% for Kokoro.
 
-### LLM: Groq, `openai/gpt-oss-120b`
+### LLM: Groq, `qwen/qwen3.8-27b` with four example exchanges
 
-On 20 English and Hinglish questions (including noisy transcripts) it answered every one in the right
-language and script. Faster models on Groq sometimes replied in the wrong language. Reasoning effort is set
-to low, and `max_tokens` is 100 to keep replies short.
+The system prompt is followed by four short example exchanges (two English, two Hinglish), which teach
+the language rule better than instructions alone. Tested on 21 English and Hinglish questions, including
+noisy transcripts like "bangaar" and "sakkar":
+
+| Model | Right language and script | First token, median / p90 |
+|---|---|---|
+| **qwen/qwen3.8-27b**, reasoning off | **20/20** answered (1 network timeout) | **334 / 588 ms** |
+| openai/gpt-oss-120b, reasoning low | 19/21; once leaked its reasoning into the reply | 639 / 950 ms |
+| openai/gpt-oss-20b, reasoning low | 16/20 | 903 / 2002 ms |
+
+`max_tokens` is 100 to keep replies short and spoken-length.
 
 ## Hinglish handling
 
@@ -108,7 +125,8 @@ to low, and `max_tokens` is 100 to keep replies short.
 
 ## Measured end to end
 
-First hands-free session on the demo phone, the four assignment sentences, all times in ms:
+First hands-free session on the demo phone (earlier build with gpt-oss-120b), the four assignment
+sentences, all times in ms:
 
 | # | Heard by STT | End of turn | STT | LLM first token | TTS | **Total** |
 |---|---|---|---|---|---|---|
@@ -119,7 +137,9 @@ First hands-free session on the demo phone, the four assignment sentences, all t
 
 STT word error rate on these sentences: **15%** (6 of 40 words; two of the errors are "05:00PM" vs "5 PM").
 Everything except the LLM adds up to about 1.5 s; Groq's time to first token varied from 0.9 to 2.6 s
-during this session. Typed turns, which skip the silence wait and STT, measured 1.2 to 1.4 s to first audio.
+during this session, which is why the model was then switched to qwen3.8-27b (about half the first-token
+time in testing). Free-speech turns in a later session took 1.75 to 2.5 s; typed turns, which skip the
+silence wait and STT, take 1.2 to 1.4 s to first audio.
 
 More numbers: [`tools/bench/results.md`](tools/bench/results.md).
 
@@ -146,7 +166,7 @@ checkpoint.
 
 ```bash
 flutter analyze
-flutter test        # 154 unit tests: segmenter, transcriber scheduling, SSE parser, phrase splitter,
+flutter test        # 152 unit tests: segmenter, transcriber scheduling, SSE parser, phrase splitter,
                     # text normalizer, loanwords, Roman Hinglish, WER, band levels, LLM client, ...
 ```
 
@@ -162,7 +182,7 @@ lib/
   tts/           Piper engine, TTS isolate, phrase splitter, text normalizer, loanwords, number words
   text/          Devanagari to Roman Hinglish for display
   vad/           Silero detector, segmenter, VAD isolate
-  pipeline/      per-turn latency metrics, WER/CER
+  pipeline/      per-turn latency metrics, WER/CER, the four test sentences
   ui/            main screen, visualizer, reply reveal, palette
   spike/         on-phone test screens used to choose the runtimes and voices
 native/          C wrapper around whisper.cpp (prompt, token probabilities, audio window)
@@ -172,8 +192,8 @@ tools/           model conversion script, benchmark results
 
 ## Limitations
 
-- Groq's time to first token is the largest and least predictable stage. It also occasionally answers an
-  English question in Hindi; a few-shot prompt is the next fix.
+- Groq's time to first token is the least predictable stage, and the free tier rate-limits bursts of
+  requests.
 - STT mishears some proper nouns and phrases ("Bangalore" as "bangaar").
 - No barge-in: the mic is closed while the assistant speaks, to avoid hearing itself. Tap to stop.
 - The app cannot set alarms or read calendars (no device actions, by design); it says so and suggests what
