@@ -1,13 +1,15 @@
 import 'package:flutter/foundation.dart';
 
+import 'loanwords.dart';
 import 'number_words.dart';
 import 'voice.dart';
 
 /// Prepares one phrase for synthesis: removes symbols the voice can't read
 /// and spells out numbers, times and acronyms in the phrase's language.
 ///
-/// Latin words left inside a Devanagari phrase can't be pronounced by the
-/// Hindi front-end; they are kept and passed to [onUnknownLatin].
+/// Latin words inside a Devanagari phrase can't be pronounced by the Hindi
+/// voice. Common ones are respelled from [loanwords]; the rest are kept and
+/// passed to [onUnknownLatin].
 String normalize(
   String phrase,
   Voice voice, {
@@ -45,6 +47,12 @@ String normalize(
   }
   s = s.replaceAllMapped(_number, (m) => ' ${_numberWords(m[0]!, hindi)} ');
   if (hindi) {
+    s = s.replaceAllMapped(_latinWord, (m) {
+      final w = m[0]!;
+      final shouted = w.length > 1 && w == w.toUpperCase();
+      if (shouted && w.toLowerCase() != 'ok') return w;
+      return loanword(w) ?? w;
+    });
     s = s.replaceAllMapped(
       _acronym,
       (m) => ' ${m[0]!.split('').map((c) => _letterNames[c]).join(' ')} ',

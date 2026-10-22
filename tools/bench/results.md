@@ -57,3 +57,17 @@ against a romanized reference (4 Hindi / 3 English sentences). This measures int
 
 Kokoro needs as long as (or longer than) the audio it produces on this phone, so streamed playback would stall.
 Pick: Piper `hi_IN-priyamvada` + Piper `en_US-lessac`, int8, 22.05 kHz.
+
+### Hinglish round-trip (2026-10-22)
+
+13 assistant-style Hinglish replies: 10 written fully in Devanagari (English words in their usual Hindi spelling),
+3 with English words left in Latin script. Same round-trip method as above. Piper on the phone: RTF 0.26 to 0.30 for 3 to 5 s sentences.
+
+| Engine | All Devanagari (99 words) | Latin left in (34 words) | Latin left in, after `TextNormalizer` loanwords |
+|---|---|---|---|
+| Piper hi_IN-priyamvada | 16.2% WER / 6.0% CER | 23.5% / 11.5% | **14.7%** |
+| Kokoro fp32 hf_alpha | 19.2% / 9.4% | 20.6% / 11.0% | |
+
+Latin words inside a Hindi phrase are mispronounced by the Hindi voice ("next meeting" -> "next bite", "design team" -> "dishaan tin",
+"charger" -> "shaaj"). Common Hindi spellings fix it (नेक्स्ट मीटिंग, डिज़ाइन टीम, चार्जर); invented phonetic spellings don't (स्केजूल).
+`lib/tts/loanwords.dart` respells ~170 common words (plus plurals) before synthesis.

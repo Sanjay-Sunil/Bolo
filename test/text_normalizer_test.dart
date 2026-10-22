@@ -169,9 +169,34 @@ void main() {
 
   group('Latin text inside Devanagari phrases', () {
     test('short acronyms are spelled with letter names', () {
-      expect(hi('आपका OK मिल गया।'), 'आपका ओ के मिल गया।');
+      expect(hi('मेरा PNR देखिए'), 'मेरा पी एन आर देखिए');
       expect(hi('UPI से पेमेंट करें'), 'यू पी आई से पेमेंट करें');
       expect(hi('मेरा WIFI बंद है'), 'मेरा डब्ल्यू आई एफ़ आई बंद है');
+    });
+
+    test('common English words are respelled in Devanagari', () {
+      final unknown = <String>[];
+      expect(
+        hi('आज का schedule थोड़ा busy है, lunch के बाद दो calls हैं।', unknown),
+        'आज का शेड्यूल थोड़ा बिज़ी है, लंच के बाद दो कॉल्स हैं।',
+      );
+      expect(unknown, isEmpty);
+    });
+
+    test('loanwords ignore case', () {
+      expect(hi('Meeting कब है?'), 'मीटिंग कब है?');
+      expect(hi('OK, हो गया।'), 'ओके, हो गया।');
+      expect(hi('okay'), 'ओके');
+    });
+
+    test('plurals of loanwords', () {
+      expect(hi('दो tickets'), 'दो टिकट्स');
+      expect(hi('तीन movies'), 'तीन मूवीज़');
+      expect(hi('सारी classes'), 'सारी क्लासेज़');
+    });
+
+    test('Latin text inside a Devanagari word run is untouched', () {
+      expect(hi('मीटिंग'), 'मीटिंग');
     });
 
     test('other Latin words are kept and reported', () {
@@ -231,9 +256,9 @@ void main() {
       final unknown = <String>[];
       expect(
         hi('हाँ, आपकी next मीटिंग 3:30 PM पर है।', unknown),
-        'हाँ, आपकी next मीटिंग साढ़े तीन पी एम पर है।',
+        'हाँ, आपकी नेक्स्ट मीटिंग साढ़े तीन पी एम पर है।',
       );
-      expect(unknown, ['next']);
+      expect(unknown, isEmpty);
     });
   });
 }
