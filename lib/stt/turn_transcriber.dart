@@ -70,6 +70,9 @@ class TurnTranscriber {
     _final = Completer<SttResult>();
   }
 
+  /// All committed audio of the current turn.
+  Float32List get turnAudio => _join();
+
   Future<void> close() => _live.close();
 
   void _finish() {

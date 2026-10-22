@@ -32,6 +32,7 @@ void main() {
       const [ChatMessage.user('Hi'), ChatMessage.assistant('Hello!')],
       'What time is it?',
       now: now,
+      examples: const [],
     );
     expect(msgs.map((m) => m['role']), ['system', 'user', 'assistant', 'user']);
     expect(msgs.last['content'], 'What time is it?');
@@ -45,7 +46,13 @@ void main() {
         ChatMessage.assistant('a$i'),
       ],
     ];
-    final msgs = buildMessages(history, 'new', maxTurns: 2, now: now);
+    final msgs = buildMessages(
+      history,
+      'new',
+      maxTurns: 2,
+      now: now,
+      examples: const [],
+    );
     expect(msgs.skip(1).map((m) => m['content']), [
       'u8',
       'a8',
@@ -67,12 +74,31 @@ void main() {
       'new',
       maxTurns: 1,
       now: now,
+      examples: const [],
     );
     expect(msgs.skip(1).map((m) => m['content']), ['u1', 'a1', 'new']);
   });
 
+  test('few-shot examples sit between the system prompt and history', () {
+    final msgs = buildMessages(
+      const [ChatMessage.user('Hi'), ChatMessage.assistant('Hello!')],
+      'kal ka plan',
+      now: now,
+    );
+    final n = fewShotExamples.length;
+    expect(msgs.length, 1 + n + 3);
+    expect(msgs[1]['content'], fewShotExamples.first.text);
+    expect(msgs[n + 1]['content'], 'Hi');
+    expect(msgs.last['content'], 'kal ka plan');
+  });
+
   test('works with empty history', () {
-    final msgs = buildMessages(const [], 'Namaste', now: now);
+    final msgs = buildMessages(
+      const [],
+      'Namaste',
+      now: now,
+      examples: const [],
+    );
     expect(msgs.length, 2);
     expect(msgs.last, {'role': 'user', 'content': 'Namaste'});
   });

@@ -5,6 +5,7 @@ class ChatEntry {
     required this.reply,
     this.metrics = '',
     this.confidence,
+    this.accuracy = '',
     this.typed = false,
   });
 
@@ -18,5 +19,8 @@ class ChatEntry {
 
   /// STT confidence 0..1 for spoken turns.
   final double? confidence;
+
+  /// WER/CER against a matching test sentence, empty otherwise.
+  final String accuracy;
   final bool typed;
 }

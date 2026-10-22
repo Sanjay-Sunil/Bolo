@@ -50,7 +50,7 @@ void main() {
     expect(body['stream'], isTrue);
     expect(body['model'], LlmProvider.groq.defaultModel);
     expect(body['max_tokens'], LlmClient.maxTokens);
-    expect(body['reasoning_effort'], 'low');
+    expect(body['reasoning_effort'], 'none');
     final messages = body['messages'] as List;
     expect(messages.first['role'], 'system');
     expect(messages.last, {'role': 'user', 'content': 'kal ka alarm'});

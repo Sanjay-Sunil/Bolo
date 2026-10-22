@@ -1,8 +1,11 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:isolate';
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
+import 'package:http/http.dart' as http;
+import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:record/record.dart';
 
@@ -14,6 +17,7 @@ import '../llm/chat_message.dart';
 import '../llm/llm_client.dart';
 import '../llm/llm_provider.dart';
 import '../llm/llm_stream_exception.dart';
+import '../pipeline/reference_score.dart';
 import '../pipeline/turn_metrics.dart';
 import '../stt/stt_isolate.dart';
 import '../stt/turn_transcriber.dart';
@@ -35,6 +39,9 @@ class ConversationController {
   static const idleTimeout = Duration(seconds: 8);
   static const maxTurn = Duration(seconds: 25);
   static const _sampleRate = 16000;
+
+  /// No token for this long counts as a stalled reply.
+  static const _llmStall = Duration(seconds: 6);
   static final _sentenceEnd = RegExp(r'[.?!।]["”’)]*\s*$');
 
   final phase = ValueNotifier(ConversationPhase.loading);
@@ -51,6 +58,10 @@ class ConversationController {
 
   /// Latency breakdown of the last turn.
   final metrics = ValueNotifier('');
+
+  /// STT accuracy of the last spoken turn: WER/CER when it matches one of
+  /// the test sentences, plus STT confidence.
+  final accuracy = ValueNotifier('');
 
   /// Latest mic visualizer levels (read every frame by the UI).
   Float32List micLevels = Float32List(7);
@@ -172,6 +183,7 @@ class ConversationController {
     _transcriber?.reset();
     userText.value = t;
     reply.value = const [];
+    accuracy.value = '';
     _metrics = const TurnMetrics();
     unawaited(_respond(t, typed: true));
   }
@@ -243,6 +255,7 @@ class ConversationController {
             );
             userText.value = '';
             reply.value = const [];
+            unawaited(_llm?.warmUp());
             final turn = _turn;
             _maxTurnTimer = Timer(maxTurn, () {
               if (turn == _turn) _vad!.forceEndOfTurn();
@@ -269,17 +282,25 @@ class ConversationController {
     if (turn != _turn) return;
     _metrics = _metrics.mark(TurnEvent.sttFinal, now);
     final text = result.text.trim();
+    if (_saveTurns) unawaited(_saveTurn(_transcriber!.turnAudio, text));
     if (text.isEmpty) {
       if (_active) await _listen();
       return;
     }
     userText.value = text;
-    await _respond(text, confidence: math.exp(result.avgLogProb));
+    final confidence = math.exp(result.avgLogProb);
+    final score = ReferenceScore.match(text);
+    accuracy.value = [
+      ?score?.summary(),
+      'STT conf ${(confidence * 100).round()}%',
+    ].join(' · ');
+    await _respond(text, confidence: confidence, score: score?.summary());
   }
 
   Future<void> _respond(
     String text, {
     double? confidence,
+    String? score,
     bool typed = false,
   }) async {
     final turn = _turn;
@@ -291,59 +312,85 @@ class ConversationController {
     }
     phase.value = ConversationPhase.thinking;
     reply.value = const [];
+    status.value = '';
     _metrics = _metrics.mark(TurnEvent.llmRequest, now);
     final spoken = StringBuffer();
     var chain = Future<void>.value();
     var firstPhrase = true;
-    try {
-      final tokens = llm.streamReply(_llmHistory, text).map((t) {
-        if (_metrics[TurnEvent.llmFirstToken] == null) {
-          _metrics = _metrics.mark(TurnEvent.llmFirstToken, now);
+    // One retry if the stream stalls before anything has been spoken.
+    for (var attempt = 1; attempt <= 2; attempt++) {
+      try {
+        final tokens = llm
+            .streamReply(_llmHistory, text)
+            .timeout(_llmStall)
+            .map((t) {
+              if (_metrics[TurnEvent.llmFirstToken] == null) {
+                _metrics = _metrics.mark(TurnEvent.llmFirstToken, now);
+              }
+              return t;
+            });
+        await for (final phrase in PhraseSplitter().split(tokens)) {
+          if (turn != _turn) break;
+          final capitalize =
+              spoken.isEmpty || _sentenceEnd.hasMatch(spoken.toString());
+          spoken.write(spoken.isEmpty ? phrase : ' $phrase');
+          final synth = _tts!.synthesize(phrase);
+          chain = chain.then((_) async {
+            final r = await synth;
+            if (turn != _turn) return;
+            if (firstPhrase) {
+              firstPhrase = false;
+              _metrics = _metrics.mark(TurnEvent.firstPhraseReady, now);
+            }
+            final start = await _player.enqueue(
+              r.pcm16,
+              r.sampleRate,
+              r.duration,
+            );
+            if (_metrics[TurnEvent.firstAudio] == null) {
+              _metrics = _metrics.mark(TurnEvent.firstAudio, start);
+              phase.value = ConversationPhase.speaking;
+            }
+            reply.value = [
+              ...reply.value,
+              SpokenPhrase(
+                text: romanHinglish(phrase, capitalize: capitalize),
+                start: start,
+                duration: r.duration,
+                levels: r.levels,
+                levelWindow: r.levelWindow,
+                sampleRate: r.sampleRate,
+              ),
+            ];
+          });
         }
-        return t;
-      });
-      await for (final phrase in PhraseSplitter().split(tokens)) {
-        if (turn != _turn) break;
-        final capitalize =
-            spoken.isEmpty || _sentenceEnd.hasMatch(spoken.toString());
-        spoken.write(spoken.isEmpty ? phrase : ' $phrase');
-        final synth = _tts!.synthesize(phrase);
-        chain = chain.then((_) async {
-          final r = await synth;
-          if (turn != _turn) return;
-          if (firstPhrase) {
-            firstPhrase = false;
-            _metrics = _metrics.mark(TurnEvent.firstPhraseReady, now);
-          }
-          final start = await _player.enqueue(
-            r.pcm16,
-            r.sampleRate,
-            r.duration,
-          );
-          if (_metrics[TurnEvent.firstAudio] == null) {
-            _metrics = _metrics.mark(TurnEvent.firstAudio, start);
-            phase.value = ConversationPhase.speaking;
-          }
-          reply.value = [
-            ...reply.value,
-            SpokenPhrase(
-              text: romanHinglish(phrase, capitalize: capitalize),
-              start: start,
-              duration: r.duration,
-              levels: r.levels,
-              levelWindow: r.levelWindow,
-              sampleRate: r.sampleRate,
-            ),
-          ];
-        });
+        await chain;
+        break;
+      } on TimeoutException {
+        if (attempt == 1 && spoken.isEmpty && turn == _turn) {
+          debugPrint('BOLO LLM stalled, retrying');
+          continue;
+        }
+        status.value = 'Groq is taking too long. Try again.';
+      } on LlmStreamException catch (e) {
+        debugPrint('BOLO LLM error: $e');
+        status.value = switch (e.code) {
+          '401' || 'invalid_api_key' => 'Groq rejected the API key.',
+          '429' || 'rate_limit_exceeded' =>
+            'Groq is rate-limiting. Try again in a moment.',
+          _ => 'Groq error: ${e.message}',
+        };
+      } on SocketException {
+        status.value =
+            'No internet. Speech works offline, but replies need Groq.';
+      } on http.ClientException {
+        status.value =
+            'No internet. Speech works offline, but replies need Groq.';
+      } catch (e) {
+        debugPrint('BOLO turn error: $e');
+        status.value = 'Something went wrong: $e';
       }
-      await chain;
-    } on LlmStreamException catch (e) {
-      debugPrint('BOLO LLM error: $e');
-      status.value = 'Couldn\'t reach Groq: ${e.message}';
-    } catch (e) {
-      debugPrint('BOLO turn error: $e');
-      status.value = 'Something went wrong: $e';
+      break;
     }
     if (turn != _turn) return;
 
@@ -367,6 +414,7 @@ class ConversationController {
           reply: romanHinglish(answer),
           metrics: summary,
           confidence: confidence,
+          accuracy: score ?? '',
           typed: typed,
         ),
       ];
@@ -377,6 +425,52 @@ class ConversationController {
       phase.value = ConversationPhase.idle;
     }
   }
+
+  /// Development switch (`--dart-define=BOLO_SAVE_TURNS=true`): keeps each
+  /// turn's audio and transcript so STT changes can be re-scored offline.
+  static const _saveTurns = bool.fromEnvironment('BOLO_SAVE_TURNS');
+  int _savedTurns = 0;
+
+  Future<void> _saveTurn(Float32List audio, String text) async {
+    final dir = await getExternalStorageDirectory();
+    if (dir == null) return;
+    final n = ++_savedTurns;
+    final stamp = DateTime.now().millisecondsSinceEpoch;
+    await _writeWav('${dir.path}/turns/$stamp-$n', audio, text);
+  }
+
+  static Future<void> _writeWav(String base, Float32List audio, String text) =>
+      Isolate.run(() {
+        final pcm = ByteData(audio.length * 2);
+        for (var i = 0; i < audio.length; i++) {
+          pcm.setInt16(
+            i * 2,
+            (audio[i].clamp(-1.0, 1.0) * 32767).round(),
+            Endian.little,
+          );
+        }
+        final header = ByteData(44)
+          ..setUint32(0, 0x46464952, Endian.little)
+          ..setUint32(4, 36 + pcm.lengthInBytes, Endian.little)
+          ..setUint32(8, 0x45564157, Endian.little)
+          ..setUint32(12, 0x20746d66, Endian.little)
+          ..setUint32(16, 16, Endian.little)
+          ..setUint16(20, 1, Endian.little)
+          ..setUint16(22, 1, Endian.little)
+          ..setUint32(24, _sampleRate, Endian.little)
+          ..setUint32(28, _sampleRate * 2, Endian.little)
+          ..setUint16(32, 2, Endian.little)
+          ..setUint16(34, 16, Endian.little)
+          ..setUint32(36, 0x61746164, Endian.little)
+          ..setUint32(40, pcm.lengthInBytes, Endian.little);
+        File('$base.wav')
+          ..createSync(recursive: true)
+          ..writeAsBytesSync([
+            ...header.buffer.asUint8List(),
+            ...pcm.buffer.asUint8List(),
+          ]);
+        File('$base.txt').writeAsStringSync(text);
+      });
 
   Future<void> dispose() async {
     _active = false;

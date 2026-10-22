@@ -45,6 +45,7 @@ class LlmClient {
             'temperature': temperature,
             ...reasoningOptions(model),
           });
+    _lastUse = DateTime.now();
     final response = await _client.send(request);
     yield* response.stream.transform(const SseParser());
     if (response.statusCode != 200) {
@@ -65,6 +66,24 @@ class LlmClient {
       return {'reasoning_effort': 'none'};
     }
     return const {};
+  }
+
+  DateTime _lastUse = DateTime.fromMillisecondsSinceEpoch(0);
+
+  /// Opens (or keeps alive) the HTTPS connection so the TLS handshake is not
+  /// paid when the real request goes out. Cheap; errors are ignored.
+  Future<void> warmUp() async {
+    final t = DateTime.now();
+    if (t.difference(_lastUse) < const Duration(seconds: 15)) return;
+    _lastUse = t;
+    try {
+      await _client
+          .get(
+            Uri.parse('${provider.baseUrl}/models'),
+            headers: {'Authorization': 'Bearer $apiKey'},
+          )
+          .timeout(const Duration(seconds: 5));
+    } catch (_) {}
   }
 
   void close() => _client.close();

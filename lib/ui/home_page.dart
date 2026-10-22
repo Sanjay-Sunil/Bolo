@@ -98,12 +98,21 @@ class _Stage extends StatelessWidget {
                     ),
                   ),
           ),
-          ValueListenableBuilder(
-            valueListenable: c.metrics,
-            builder: (context, m, _) => Text(
-              m,
-              textAlign: TextAlign.center,
-              style: inter(11, color: Palette.textMuted),
+          ListenableBuilder(
+            listenable: Listenable.merge([c.metrics, c.accuracy]),
+            builder: (context, _) => Column(
+              children: [
+                for (final line in [c.metrics.value, c.accuracy.value])
+                  if (line.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 3),
+                      child: Text(
+                        line,
+                        textAlign: TextAlign.center,
+                        style: inter(11, color: Palette.textMuted),
+                      ),
+                    ),
+              ],
             ),
           ),
           const SizedBox(height: 18),
@@ -486,9 +495,10 @@ class _HistoryItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final e = entry;
-    final conf = e.confidence == null
-        ? ''
-        : ' · STT conf ${(e.confidence! * 100).round()}%';
+    final conf = [
+      if (e.accuracy.isNotEmpty) e.accuracy,
+      if (e.confidence != null) 'STT conf ${(e.confidence! * 100).round()}%',
+    ].join(' · ');
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 16),
       decoration: const BoxDecoration(
@@ -503,13 +513,12 @@ class _HistoryItem extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(e.reply, style: inter(16, weight: 380)),
-          if (e.metrics.isNotEmpty || conf.isNotEmpty) ...[
-            const SizedBox(height: 8),
-            Text(
-              '${e.metrics}$conf',
-              style: inter(11, color: Palette.textMuted),
-            ),
-          ],
+          for (final line in [e.metrics, conf])
+            if (line.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: Text(line, style: inter(11, color: Palette.textMuted)),
+              ),
         ],
       ),
     );

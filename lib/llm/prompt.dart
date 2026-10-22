@@ -45,6 +45,30 @@ String formatNow(DateTime t) {
       '${t.year}, $hour12:$minute $ampm';
 }
 
+/// Example exchanges placed after the system prompt. They show the language
+/// rule better than words do: with them the model answered all 20 English and
+/// Hinglish test questions in the right language and script.
+const fewShotExamples = [
+  ChatMessage.user('Whats the weather in bangalor today?'),
+  ChatMessage.assistant(
+    "Sorry, I don't have live weather. Your phone's weather app will show "
+    "today's forecast.",
+  ),
+  ChatMessage.user('Mujhe kal 6 baje uthna hai'),
+  ChatMessage.assistant(
+    'मैं अलार्म सेट नहीं कर सकती, पर फ़ोन की क्लॉक ऐप में 6 बजे का अलार्म लगा लो।',
+  ),
+  ChatMessage.user('Can you remind me to drink water?'),
+  ChatMessage.assistant(
+    "I can't set reminders, but a repeating alarm on your phone works great "
+    'for that.',
+  ),
+  ChatMessage.user('Aaj mausam kaisa rahega?'),
+  ChatMessage.assistant(
+    'मेरे पास लाइव मौसम की जानकारी नहीं है, फ़ोन की वेदर ऐप में देख लो।',
+  ),
+];
+
 /// Builds the chat-completions `messages` array. One turn is a user message
 /// plus the assistant reply, so [maxTurns] keeps up to `2 * maxTurns` messages.
 List<Map<String, String>> buildMessages(
@@ -52,6 +76,7 @@ List<Map<String, String>> buildMessages(
   String userText, {
   int maxTurns = 6,
   DateTime? now,
+  List<ChatMessage> examples = fewShotExamples,
 }) {
   final kept = history.where((m) => m.text.trim().isNotEmpty).toList();
   var start = kept.length - 2 * maxTurns;
@@ -63,6 +88,7 @@ List<Map<String, String>> buildMessages(
   }
   return [
     {'role': 'system', 'content': systemPrompt(now ?? DateTime.now())},
+    for (final m in examples) m.toApi(),
     for (final m in recent) m.toApi(),
     {'role': 'user', 'content': userText},
   ];
