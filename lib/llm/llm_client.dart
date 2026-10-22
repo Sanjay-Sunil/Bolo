@@ -43,6 +43,7 @@ class LlmClient {
             'stream': true,
             'max_tokens': maxTokens,
             'temperature': temperature,
+            ...reasoningOptions(model),
           });
     final response = await _client.send(request);
     yield* response.stream.transform(const SseParser());
@@ -52,6 +53,18 @@ class LlmClient {
         code: '${response.statusCode}',
       );
     }
+  }
+
+  /// Keeps reasoning models from spending the first-token budget on hidden
+  /// reasoning.
+  static Map<String, Object> reasoningOptions(String model) {
+    if (model.startsWith('openai/gpt-oss')) {
+      return {'reasoning_effort': 'low', 'include_reasoning': false};
+    }
+    if (model.startsWith('qwen/') || model.startsWith('gemini-2.5-flash')) {
+      return {'reasoning_effort': 'none'};
+    }
+    return const {};
   }
 
   void close() => _client.close();

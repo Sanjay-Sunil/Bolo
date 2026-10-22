@@ -50,9 +50,24 @@ void main() {
     expect(body['stream'], isTrue);
     expect(body['model'], LlmProvider.groq.defaultModel);
     expect(body['max_tokens'], LlmClient.maxTokens);
+    expect(body['reasoning_effort'], 'none');
     final messages = body['messages'] as List;
     expect(messages.first['role'], 'system');
     expect(messages.last, {'role': 'user', 'content': 'kal ka alarm'});
+  });
+
+  test('reasoning options per model family', () {
+    expect(LlmClient.reasoningOptions('openai/gpt-oss-120b'), {
+      'reasoning_effort': 'low',
+      'include_reasoning': false,
+    });
+    expect(LlmClient.reasoningOptions('qwen/qwen3.8-27b'), {
+      'reasoning_effort': 'none',
+    });
+    expect(LlmClient.reasoningOptions('gemini-2.5-flash'), {
+      'reasoning_effort': 'none',
+    });
+    expect(LlmClient.reasoningOptions('gemini-3.5-flash-lite'), isEmpty);
   });
 
   test('API error body becomes LlmStreamException', () async {

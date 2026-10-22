@@ -71,3 +71,20 @@ Pick: Piper `hi_IN-priyamvada` + Piper `en_US-lessac`, int8, 22.05 kHz.
 Latin words inside a Hindi phrase are mispronounced by the Hindi voice ("next meeting" -> "next bite", "design team" -> "dishaan tin",
 "charger" -> "shaaj"). Common Hindi spellings fix it (नेक्स्ट मीटिंग, डिज़ाइन टीम, चार्जर); invented phonetic spellings don't (स्केजूल).
 `lib/tts/loanwords.dart` respells ~170 common words (plus plurals) before synthesis.
+
+## LLM first look (2026-10-22, laptop on home Wi-Fi, not the phone)
+
+System prompt from `lib/llm/prompt.dart`, the 4 test sentences as user text, 2 runs each, `stream: true`, `max_tokens` 100.
+"Script OK" = English question answered without Devanagari; Hinglish question answered in Devanagari with no Latin words.
+RAM: none on the phone (cloud model).
+
+| Provider / model | Options | First token (median) | Full reply (median) | Script OK |
+|---|---|---|---|---|
+| Groq qwen/qwen3.8-27b | reasoning_effort none | 246 ms | 329 ms | 7/8 (one Hinglish question answered in English) |
+| Groq openai/gpt-oss-120b | reasoning_effort low | 460 ms | 572 ms | 8/8 |
+| Groq openai/gpt-oss-20b | reasoning_effort low | 724 ms | 779 ms | 8/8 |
+| Gemini gemini-2.5-flash | reasoning_effort none | 946 ms | 1119 ms | 6/6 (1 request failed) |
+| Gemini gemini-3.5-flash-lite / flash-lite-latest | default | ~10.2 s | ~10.4 s | 8/8 |
+| Gemini gemini-2.5-flash-lite | | n/a | n/a | "no longer available to new users" |
+
+Groq llama-3.3-70b-versatile is not offered to this key. Provisional defaults: Groq qwen3.8-27b, Gemini 2.5 Flash; the Phase 5 benchmark on the phone decides.
