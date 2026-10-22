@@ -28,6 +28,12 @@ void main() {
     expect(romanHinglish('ओके'), 'Okay');
   });
 
+  test('loanwords match with or without the nukta', () {
+    expect(romanHinglish('ऑफिस'), 'Office');
+    expect(romanHinglish('ऑफ़िस'), 'Office');
+    expect(romanHinglish('ऑ\u095eिस'), 'Office');
+  });
+
   test('nukta letters', () {
     expect(romanHinglish('ज़रूर'), 'Zaroor');
     expect(romanHinglish('पढ़ना'), 'Parhna');

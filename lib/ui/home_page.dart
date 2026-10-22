@@ -198,25 +198,28 @@ class _CenterText extends StatelessWidget {
     style: inter(17, weight: 350, color: Palette.textMuted, height: 1.6),
   );
 
-  Widget _userWords(String text, {required bool live}) => Text(
-    text,
-    key: const ValueKey('user'),
-    textAlign: TextAlign.center,
-    style: inter(
-      live ? 22 : 16,
-      weight: live ? 350 : 400,
-      color: live ? Palette.text : Palette.textSoft,
-      height: 1.4,
-    ),
-  );
+  Widget _userWords(String text, {required bool live}) {
+    final words = Text(
+      text,
+      textAlign: TextAlign.center,
+      style: inter(
+        live ? 22 : 16,
+        weight: live ? 350 : 400,
+        color: live ? Palette.text : Palette.textSoft,
+        height: 1.4,
+      ),
+    );
+    return live
+        ? _FollowLatest(key: const ValueKey('user'), child: words)
+        : words;
+  }
 
   Widget _replyBlock(
     String user,
     List<SpokenPhrase> reply, {
     required bool dim,
-  }) => SingleChildScrollView(
+  }) => _FollowLatest(
     key: ValueKey('reply-${reply.isEmpty ? 0 : reply.first.start}'),
-    physics: const NeverScrollableScrollPhysics(),
     child: Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -235,6 +238,45 @@ class _CenterText extends StatelessWidget {
       ],
     ),
   );
+}
+
+/// Keeps the newest lines in view: once the text outgrows the area, earlier
+/// lines slide up and fade out at the top edge.
+class _FollowLatest extends StatelessWidget {
+  const _FollowLatest({super.key, required this.child});
+
+  static const _fade = 28.0;
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, box) => ShaderMask(
+        blendMode: BlendMode.dstIn,
+        shaderCallback: (rect) => LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: const [Color(0x00000000), Color(0xFF000000)],
+          stops: [0, _fade / rect.height],
+        ).createShader(rect),
+        child: SingleChildScrollView(
+          reverse: true,
+          physics: const NeverScrollableScrollPhysics(),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minHeight: box.maxHeight),
+            child: Align(
+              alignment: Alignment.topCenter,
+              child: Padding(
+                padding: const EdgeInsets.only(top: _fade),
+                child: child,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class _Controls extends StatelessWidget {

@@ -43,7 +43,8 @@ final _sentenceEnd = RegExp(r'[.?!]\s*$');
 final _letter = RegExp('[A-Za-z0-9]');
 
 String _romanWord(String word) {
-  final known = _common[word] ?? _englishFor[word];
+  final known =
+      _common[word] ?? _englishFor[word] ?? _englishFor[_precomposed(word)];
   if (known != null) return known;
   if (word.endsWith('्स')) {
     final stem = _englishFor[word.substring(0, word.length - 2)];
@@ -56,10 +57,30 @@ String _romanWord(String word) {
   return _transliterate(word);
 }
 
+/// Splits precomposed nukta letters (ज़ U+095B) into base + nukta, matching
+/// how the loanword table is written.
+String _precomposed(String word) {
+  const split = {
+    '\u0958': 'क\u093c',
+    '\u0959': 'ख\u093c',
+    '\u095a': 'ग\u093c',
+    '\u095b': 'ज\u093c',
+    '\u095c': 'ड\u093c',
+    '\u095d': 'ढ\u093c',
+    '\u095e': 'फ\u093c',
+    '\u095f': 'य\u093c',
+  };
+  var out = word;
+  split.forEach((a, b) => out = out.replaceAll(a, b));
+  return out;
+}
+
 final Map<String, String> _englishFor = () {
   final m = <String, String>{};
   for (final e in loanwords.entries) {
     m.putIfAbsent(e.value, () => e.key);
+    // The LLM often drops the nukta (ऑफिस for ऑफ़िस).
+    m.putIfAbsent(e.value.replaceAll('़', ''), () => e.key);
   }
   m['ओके'] = 'okay';
   return m;
