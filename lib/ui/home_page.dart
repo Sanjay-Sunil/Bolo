@@ -10,6 +10,7 @@ import '../conversation/conversation_phase.dart';
 import '../conversation/conversation_provider.dart';
 import '../conversation/spoken_phrase.dart';
 import 'frequency_bars.dart';
+import 'key_sheet.dart';
 import 'palette.dart';
 import 'reply_text.dart';
 
@@ -58,13 +59,17 @@ class _Stage extends StatelessWidget {
           const SizedBox(height: 18),
           Row(
             children: [
-              Text(
-                'bolo',
-                style: inter(
-                  15,
-                  weight: 600,
-                  color: Palette.textSoft,
-                  letterSpacing: 2,
+              // Long-press the name to change the Groq key.
+              GestureDetector(
+                onLongPress: () => openKeySheet(context, c),
+                child: Text(
+                  'bolo',
+                  style: inter(
+                    15,
+                    weight: 600,
+                    color: Palette.textSoft,
+                    letterSpacing: 2,
+                  ),
                 ),
               ),
               const Spacer(),
@@ -79,7 +84,7 @@ class _Stage extends StatelessWidget {
           ),
           const Spacer(flex: 3),
           GestureDetector(
-            onTap: c.toggle,
+            onTap: () => talkOrAskForKey(context, c),
             child: FrequencyBars(controller: c),
           ),
           const SizedBox(height: 44),
@@ -160,6 +165,7 @@ class _CenterText extends StatelessWidget {
         c.userText,
         c.reply,
         c.downloadProgress,
+        c.needsKey,
       ]),
       builder: (context, _) {
         final phase = c.phase.value;
@@ -173,7 +179,9 @@ class _CenterText extends StatelessWidget {
           case ConversationPhase.failed:
             child = _hint('Couldn\'t start');
           case ConversationPhase.idle:
-            child = reply.isNotEmpty
+            child = c.needsKey.value
+                ? _hint('Add your Groq key to start\nTap the mic')
+                : reply.isNotEmpty
                 ? _replyBlock(user, reply, dim: true)
                 : _hint('Tap the bars and talk\nEnglish or Hinglish');
           case ConversationPhase.listening:
@@ -333,7 +341,7 @@ class _Controls extends StatelessWidget {
               icon: running ? Icons.stop_rounded : Icons.mic_rounded,
               size: 68,
               filled: true,
-              onTap: ready ? c.toggle : null,
+              onTap: ready ? () => talkOrAskForKey(context, c) : null,
             ),
             const SizedBox(width: 28 + 46),
           ],

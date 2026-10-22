@@ -86,5 +86,22 @@ class LlmClient {
     } catch (_) {}
   }
 
+  /// Whether the provider accepts [apiKey]: null if it can't be reached.
+  Future<bool?> checkKey() async {
+    try {
+      final r = await _client
+          .get(
+            Uri.parse('${provider.baseUrl}/models'),
+            headers: {'Authorization': 'Bearer $apiKey'},
+          )
+          .timeout(const Duration(seconds: 8));
+      if (r.statusCode == 200) return true;
+      if (r.statusCode == 401 || r.statusCode == 403) return false;
+      return null;
+    } catch (_) {
+      return null;
+    }
+  }
+
   void close() => _client.close();
 }

@@ -13,6 +13,7 @@ import '../app/app_clock.dart';
 import '../app/model_manager.dart';
 import '../app/thread_budget.dart';
 import '../audio/audio_player.dart';
+import '../llm/api_key_store.dart';
 import '../llm/chat_message.dart';
 import '../llm/llm_client.dart';
 import '../llm/llm_provider.dart';
@@ -67,6 +68,10 @@ class ConversationController {
   Float32List micLevels = Float32List(7);
 
   final _models = ModelManager();
+  final _keys = ApiKeyStore();
+
+  /// True until a Groq key is available (none built in and none saved).
+  final needsKey = ValueNotifier(false);
 
   /// First-run download progress (0..1), null when not downloading.
   ValueListenable<double?> get downloadProgress => _models.progress;
@@ -96,10 +101,11 @@ class ConversationController {
 
   Future<void> init() async {
     try {
-      final key = LlmProvider.groq.buildKey;
+      final key = await _keys.read() ?? LlmProvider.groq.buildKey;
       if (key.isNotEmpty) {
         _llm = LlmClient(provider: LlmProvider.groq, apiKey: key);
       }
+      needsKey.value = _llm == null;
       final models = await _models.ensure();
       final threads = inferenceThreads();
       final sw = Stopwatch()..start();
@@ -125,7 +131,7 @@ class ConversationController {
       });
       debugPrint('BOLO models loaded in ${sw.elapsedMilliseconds} ms');
       await _warmUp();
-      status.value = _llm == null ? 'No Groq key in .env' : '';
+      status.value = '';
       phase.value = ConversationPhase.idle;
     } catch (e) {
       debugPrint('BOLO load error: $e');
@@ -146,6 +152,29 @@ class ConversationController {
       _tts!.synthesize('Okay.'),
     ]);
     debugPrint('BOLO warm-up ${sw.elapsedMilliseconds} ms');
+  }
+
+  /// Checks [key] with Groq and, if accepted, saves it and uses it from now
+  /// on. Returns an error message, or null on success.
+  Future<String?> setApiKey(String key) async {
+    final k = key.trim();
+    if (k.isEmpty) return 'Paste a key first.';
+    final client = LlmClient(provider: LlmProvider.groq, apiKey: k);
+    final ok = await client.checkKey();
+    if (ok == false) {
+      client.close();
+      return 'Groq didn\'t accept this key.';
+    }
+    if (ok == null) {
+      client.close();
+      return 'Couldn\'t reach Groq. Check the internet and try again.';
+    }
+    await _keys.write(k);
+    _llm?.close();
+    _llm = client;
+    needsKey.value = false;
+    status.value = '';
+    return null;
   }
 
   /// Mic button: start a conversation, or stop the one running.
@@ -319,8 +348,9 @@ class ConversationController {
     final turn = _turn;
     final llm = _llm;
     if (llm == null) {
-      status.value = 'No Groq key: add GROQ_API_KEY to .env and rebuild';
-      phase.value = ConversationPhase.idle;
+      needsKey.value = true;
+      status.value = 'Add your Groq key to get replies.';
+      await stop();
       return;
     }
     phase.value = ConversationPhase.thinking;

@@ -119,4 +119,30 @@ void main() {
       throwsA(isA<LlmStreamException>()),
     );
   });
+
+  group('checkKey', () {
+    LlmClient client(int status) => LlmClient(
+      provider: LlmProvider.groq,
+      apiKey: 'k',
+      client: MockClient((r) async => http.Response('{}', status)),
+    );
+
+    test('200 means accepted', () async {
+      expect(await client(200).checkKey(), isTrue);
+    });
+
+    test('401 means rejected', () async {
+      expect(await client(401).checkKey(), isFalse);
+    });
+
+    test('other failures mean unknown', () async {
+      expect(await client(503).checkKey(), isNull);
+      final offline = LlmClient(
+        provider: LlmProvider.groq,
+        apiKey: 'k',
+        client: MockClient((r) async => throw http.ClientException('offline')),
+      );
+      expect(await offline.checkKey(), isNull);
+    });
+  });
 }
