@@ -1,0 +1,107 @@
+import 'dart:convert';
+
+import 'package:bolo/llm/chat_message.dart';
+import 'package:bolo/llm/llm_client.dart';
+import 'package:bolo/llm/llm_provider.dart';
+import 'package:bolo/llm/llm_stream_exception.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
+
+String sse(List<String> parts) => [
+  for (final p in parts)
+    'data: ${jsonEncode({
+      'choices': [
+        {
+          'delta': {'content': p},
+        },
+      ],
+    })}\n\n',
+  'data: [DONE]\n\n',
+].join();
+
+void main() {
+  test('sends a streaming request and yields content deltas', () async {
+    late http.Request sent;
+    final client = MockClient.streaming((request, body) async {
+      sent = request as http.Request;
+      return http.StreamedResponse(
+        Stream.value(utf8.encode(sse(['ठीक है,', ' हो गया।']))),
+        200,
+      );
+    });
+    final llm = LlmClient(
+      provider: LlmProvider.groq,
+      apiKey: 'k',
+      client: client,
+    );
+
+    final out = await llm.streamReply([
+      const ChatMessage.user('hi'),
+    ], 'kal ka alarm').toList();
+
+    expect(out, ['ठीक है,', ' हो गया।']);
+    expect(
+      sent.url.toString(),
+      'https://api.groq.com/openai/v1/chat/completions',
+    );
+    expect(sent.headers['Authorization'], 'Bearer k');
+    final body = jsonDecode(sent.body) as Map<String, dynamic>;
+    expect(body['stream'], isTrue);
+    expect(body['model'], LlmProvider.groq.defaultModel);
+    expect(body['max_tokens'], LlmClient.maxTokens);
+    final messages = body['messages'] as List;
+    expect(messages.first['role'], 'system');
+    expect(messages.last, {'role': 'user', 'content': 'kal ka alarm'});
+  });
+
+  test('API error body becomes LlmStreamException', () async {
+    final client = MockClient.streaming(
+      (request, body) async => http.StreamedResponse(
+        Stream.value(
+          utf8.encode(
+            jsonEncode({
+              'error': {
+                'message': 'Invalid API Key',
+                'code': 'invalid_api_key',
+              },
+            }),
+          ),
+        ),
+        401,
+      ),
+    );
+    final llm = LlmClient(
+      provider: LlmProvider.groq,
+      apiKey: 'bad',
+      client: client,
+    );
+
+    expect(
+      llm.streamReply(const [], 'hi').toList(),
+      throwsA(
+        isA<LlmStreamException>().having(
+          (e) => e.message,
+          'message',
+          'Invalid API Key',
+        ),
+      ),
+    );
+  });
+
+  test('non-200 with an empty body still fails', () async {
+    final client = MockClient.streaming(
+      (request, body) async => http.StreamedResponse(const Stream.empty(), 503),
+    );
+    final llm = LlmClient(
+      provider: LlmProvider.gemini,
+      apiKey: 'k',
+      client: client,
+    );
+
+    expect(
+      llm.streamReply(const [], 'hi').toList(),
+      throwsA(isA<LlmStreamException>()),
+    );
+  });
+}
