@@ -22,6 +22,7 @@ const _laptop = 'http://127.0.0.1:8765';
 const _vadUrl =
     'https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/silero_vad_v5.onnx';
 const _models = ['q5_1', 'q8_0'];
+const _windows = [0, 750, 500]; // 0 = full 30 s window
 
 class G2Page extends StatefulWidget {
   const G2Page({super.key});
@@ -92,7 +93,7 @@ class _G2PageState extends State<G2Page> {
       );
     }
     for (final e in _engines.entries) {
-      final r = await _decode(e.value, Float32List(16000), true);
+      final r = await _decode(e.value, Float32List(16000), 750);
       _say('${e.key} warm-up ${r.$2} ms');
     }
   }
@@ -148,23 +149,49 @@ class _G2PageState extends State<G2Page> {
       final n = ++_utterance;
       final secs = (audio.length / 16000).toStringAsFixed(2);
       await _saveWav(audio, n);
-      for (final e in _engines.entries) {
-        for (final limit in [false, true]) {
-          final r = await _decode(e.value, audio, limit);
-          _say(
-            '#$n ${secs}s ${e.key} ${limit ? 'win' : 'full'} '
-            '${r.$2}ms conf=${r.$3.toStringAsFixed(2)} rss=${_rssMb}MB | ${r.$1}',
-          );
-        }
-      }
+      await _decodeAll('#$n ${secs}s', audio);
     }
     _busy = false;
+  }
+
+  Future<void> _decodeAll(String tag, Float32List audio) async {
+    for (final e in _engines.entries) {
+      for (final minCtx in _windows) {
+        final r = await _decode(e.value, audio, minCtx);
+        _say(
+          '$tag ${e.key} ${minCtx == 0 ? 'full' : 'ctx$minCtx'} '
+          '${r.$2}ms conf=${r.$3.toStringAsFixed(2)} rss=${_rssMb}MB | ${r.$1}',
+        );
+      }
+    }
+  }
+
+  /// Re-decodes saved clips utt_1..5 so windows can be compared without speaking.
+  Future<void> _replay() async {
+    if (_busy) return;
+    await _load();
+    _busy = true;
+    final dir = '${(await getExternalStorageDirectory())!.path}/recordings';
+    for (var n = 1; n <= 5; n++) {
+      final file = File('$dir/utt_$n.wav');
+      if (!await file.exists()) continue;
+      final bytes = await file.readAsBytes();
+      final data = ByteData.sublistView(bytes, 44);
+      final audio = Float32List(data.lengthInBytes ~/ 2);
+      for (var i = 0; i < audio.length; i++) {
+        audio[i] = data.getInt16(i * 2, Endian.little) / 32768.0;
+      }
+      final secs = (audio.length / 16000).toStringAsFixed(2);
+      await _decodeAll('R$n ${secs}s', audio);
+    }
+    _busy = false;
+    _say('replay done');
   }
 
   Future<(String, int, double)> _decode(
     WhisperCppEngine engine,
     Float32List audio,
-    bool limit,
+    int minCtx,
   ) {
     final address = engine.address;
     final threads = engine.threads;
@@ -172,7 +199,8 @@ class _G2PageState extends State<G2Page> {
       final e = WhisperCppEngine.fromAddress(
         address,
         threads: threads,
-        limitAudioWindow: limit,
+        limitAudioWindow: minCtx > 0,
+        minAudioCtx: minCtx > 0 ? minCtx : 256,
       );
       final r = e.decodeSync(audio);
       return (r.text, e.lastDecodeMs, r.avgLogProb);
@@ -266,6 +294,11 @@ class _G2PageState extends State<G2Page> {
                   ElevatedButton(onPressed: _start, child: const Text('Start')),
                   const SizedBox(width: 16),
                   ElevatedButton(onPressed: _stop, child: const Text('Stop')),
+                  const SizedBox(width: 16),
+                  ElevatedButton(
+                    onPressed: _replay,
+                    child: const Text('Replay'),
+                  ),
                   const SizedBox(width: 16),
                   Text(
                     _busy ? 'decoding...' : '',

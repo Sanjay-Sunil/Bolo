@@ -53,7 +53,8 @@ class _Bindings {
 
 /// whisper.cpp engine. Calls block, so use it only inside the STT isolate.
 class WhisperCppEngine implements SttEngine {
-  WhisperCppEngine._(this._ctx, this.threads, this.limitAudioWindow);
+  WhisperCppEngine._(this._ctx, this.threads, this.limitAudioWindow)
+    : minAudioCtx = defaultMinAudioCtx;
 
   /// Loads a ggml model. Returns null if the file cannot be loaded.
   static WhisperCppEngine? load(
@@ -76,23 +77,29 @@ class WhisperCppEngine implements SttEngine {
     int address, {
     required this.threads,
     this.limitAudioWindow = true,
+    this.minAudioCtx = defaultMinAudioCtx,
   }) : _ctx = Pointer<Void>.fromAddress(address);
 
   static const _sampleRate = 16000;
   static const _maxAudioCtx = 1500;
   static const _outCap = 4096;
 
+  /// Smallest encoder window (10 s). At 448 frames or less Swift's Hinglish
+  /// output falls apart; 500 matched the full 30 s window on every test clip.
+  static const defaultMinAudioCtx = 500;
+
   final Pointer<Void> _ctx;
   final int threads;
   bool limitAudioWindow;
+  int minAudioCtx;
   int lastDecodeMs = 0;
 
   int get address => _ctx.address;
 
   /// Encoder frames for [samples] of audio (50 per second) plus headroom.
-  static int audioCtxFor(int samples) {
+  static int audioCtxFor(int samples, {int minFrames = defaultMinAudioCtx}) {
     final frames = (samples / _sampleRate * 50).ceil() + 64;
-    return frames.clamp(256, _maxAudioCtx);
+    return frames.clamp(minFrames, _maxAudioCtx);
   }
 
   @override
@@ -113,7 +120,9 @@ class WhisperCppEngine implements SttEngine {
         audio.length,
         promptPtr,
         threads,
-        limitAudioWindow ? audioCtxFor(audio.length) : 0,
+        limitAudioWindow
+            ? audioCtxFor(audio.length, minFrames: minAudioCtx)
+            : 0,
         out,
         _outCap,
         logProb,
