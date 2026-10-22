@@ -142,3 +142,16 @@ Mic source A/B (same 12 clips, same setup): `voiceRecognition` (no call processi
 and cut one turn short ("Can you sir"); `voiceCommunication` (37.5% / 25.9%) stays. In that run latency was
 median 2222 ms, worst 3419 ms (LLM first token mostly 0.2 to 0.6 s), so run-to-run Groq variation is
 about ±0.2 s on the median.
+
+First phrase of 3 words instead of 5 (`PhraseSplitter(firstWords: 3)`), same automated 12 turns:
+
+| Stage | Median | Worst |
+|---|---|---|
+| End of turn | 801 | 824 |
+| STT after end of turn | 399 | 681 |
+| LLM first token | 426 | 536 |
+| TTS (first token to first audio) | **477** (was 586) | 524 |
+| **Total** | **2104** | **2276** |
+
+Over-the-air WER in this run 44.2% / CER 31.8% (same clips gave 37.5% earlier: the speaker-to-mic path and
+where the VAD cuts vary between runs). Across the two voiceCommunication runs: WER 40.8%, CER 28.9%.

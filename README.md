@@ -45,8 +45,8 @@ handles the mic, the speaker, the LLM stream and the UI.
   At every short pause (200 ms) an "early final" transcription starts. If you then stay silent until the
   turn ends, that result is already the final transcript, so most of the STT time hides inside the
   end-of-turn wait.
-- **LLM:** the reply streams token by token. The first phrase (about 5 words) goes to the TTS isolate
-  while the rest is still arriving.
+- **LLM:** the reply streams token by token. The first phrase (3 words, or up to the first comma) goes to
+  the TTS isolate while the rest is still arriving.
 - **TTS:** phrase n+1 is synthesized while phrase n plays, and phrases are queued back to back with no
   gaps.
 
@@ -125,8 +125,23 @@ noisy transcripts like "bangaar" and "sakkar":
 
 ## Measured end to end
 
-First hands-free session on the demo phone (earlier build with gpt-oss-120b), the four assignment
-sentences, all times in ms:
+**Current build, automated run.** The laptop plays the four assignment sentences out loud (three
+different synthetic speakers, 12 turns) and the phone listens hands-free, exactly as with a person.
+Times in ms, from the last voiced frame to the first sample of reply audio:
+
+| Stage | Median | Worst |
+|---|---|---|
+| End of turn (0.7 s silence) | 801 | 824 |
+| STT after end of turn | 399 | 681 |
+| LLM first token (Groq qwen3.8-27b) | 426 | 536 |
+| TTS, first token to first audio | 477 | 524 |
+| **Total** | **2104** | **2276** |
+
+Over this laptop-speaker-to-phone-mic path, STT WER was 37.5% to 44.2% (CER 26% to 32%) across runs of the
+same clips; the air path is far harsher than speaking into the phone. Numbers are normalized before
+scoring ("saat" = 7, "5PM" = "5 pm"), as Whisper's own evaluation does.
+
+**Earlier live session with a person speaking** (build with gpt-oss-120b), the four sentences, ms:
 
 | # | Heard by STT | End of turn | STT | LLM first token | TTS | **Total** |
 |---|---|---|---|---|---|---|
@@ -135,13 +150,16 @@ sentences, all times in ms:
 | 3 | Mujhe kal subah 7 baje ka alarm sakkar karna hai. | 822 | 554 | 871 | 438 | 2686 |
 | 4 | Aaj ka schedule kya hai aur mere next meeting kab hai? | 787 | 607 | 1669 | 448 | 3511 |
 
-STT word error rate on these sentences: **15%** (6 of 40 words; two of the errors are "05:00PM" vs "5 PM").
+STT word error rate on these sentences, spoken by a person: **15%** (6 of 40 words; two of the errors are
+"05:00PM" vs "5 PM").
 Everything except the LLM adds up to about 1.5 s; Groq's time to first token varied from 0.9 to 2.6 s
 during this session, which is why the model was then switched to qwen3.8-27b (about half the first-token
 time in testing). Free-speech turns in a later session took 1.75 to 2.5 s; typed turns, which skip the
 silence wait and STT, take 1.2 to 1.4 s to first audio.
 
-More numbers: [`tools/bench/results.md`](tools/bench/results.md).
+We also tried giving Whisper a context prompt. Generic Hinglish sentences or an English word list did not
+lower WER on the recorded turns, so the app decodes without a prompt. Details and all other numbers:
+[`tools/bench/results.md`](tools/bench/results.md).
 
 ## Build and run
 

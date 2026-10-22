@@ -342,7 +342,9 @@ class ConversationController {
               }
               return t;
             });
-        await for (final phrase in PhraseSplitter().split(tokens)) {
+        await for (final phrase in PhraseSplitter(
+          firstWords: 3,
+        ).split(tokens)) {
           if (turn != _turn) break;
           final capitalize =
               spoken.isEmpty || _sentenceEnd.hasMatch(spoken.toString());
