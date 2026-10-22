@@ -88,3 +88,18 @@ RAM: none on the phone (cloud model).
 | Gemini gemini-2.5-flash-lite | | n/a | n/a | "no longer available to new users" |
 
 Groq llama-3.3-70b-versatile is not offered to this key. Provisional defaults: Groq qwen3.8-27b, Gemini 2.5 Flash; the Phase 5 benchmark on the phone decides.
+
+## First full voice loop on the phone (2026-10-22, M52, release)
+
+Hands-free loop, end of turn after 700 ms silence, whole-turn STT (q8_0, 500-frame floor), Groq gpt-oss-120b (reasoning low),
+Piper phrase streaming. Latency in ms; total = last voiced frame to first reply audio.
+
+| # | Transcript | EoT | STT | LLM first token | TTS | Total |
+|---|---|---|---|---|---|---|
+| 1 | Is the weather forecast for bangaar tomorrow? | 805 | 246 | 2411 | 443 | 3906 |
+| 2 | Can you set a reminder for my meeting at 05:00PM? | 782 | 785 | 2638 | 331 | 4537 |
+| 3 | Mujhe kal subah 7 baje ka alarm sakkar karna hai. | 822 | 554 | 871 | 438 | 2686 |
+| 4 | Aaj ka schedule kya hai aur mere next meeting kab hai? | 787 | 607 | 1669 | 448 | 3511 |
+
+STT WER 15% (6/40; 2 of them are "05:00PM" vs "5 PM"). Sentence 1 got a Hindi reply to an English question.
+LLM first token (0.9 to 2.6 s) is the largest stage; everything else totals about 1.5 s.
